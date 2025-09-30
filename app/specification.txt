@@ -1,5 +1,9 @@
 Project Specification: Progr3SS Habit Planner &
 Tracker
+Overview of Progr3SS Habit Planner & Tracker
+Progr3SS is an Android application designed to help users build and maintain positive habits through structured planning,
+tracking, and progress monitoring. It serves as a comprehensive habit planner and tracker, enabling users to create personalized schedules,
+set goals, log progress, and collaborate with others.
 This document outlines the functional specifications for the Progr3SS application
 Splash Screen
 Functionality:
