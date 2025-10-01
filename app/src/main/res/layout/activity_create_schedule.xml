@@ -5,7 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="?android:attr/colorBackground"
-    tools:context=".CreateScheduleActivity">
+    tools:context="com.example.progfront.ui.schedule.CreateScheduleActivity">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -63,9 +63,7 @@
                     android:drawablePadding="4dp"
                     android:minWidth="120dp"
                     style="@style/Widget.AppCompat.Button.Borderless.Colored" />
-
             </LinearLayout>
-
         </androidx.cardview.widget.CardView>
 
         <!-- Date and Time Settings Section -->
@@ -118,7 +116,6 @@
                         android:background="@drawable/spinner_background"
                         android:padding="12dp"
                         style="@style/Widget.AppCompat.Button.Borderless" />
-
                 </LinearLayout>
 
                 <!-- Start Time -->
@@ -167,7 +164,6 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:minWidth="80dp" />
-
                 </LinearLayout>
 
                 <!-- End Time -->
@@ -216,7 +212,6 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:minWidth="80dp" />
-
                 </LinearLayout>
 
                 <!-- Duration -->
@@ -237,9 +232,7 @@
                     android:inputType="number"
                     android:background="@drawable/spinner_background"
                     android:padding="12dp" />
-
             </LinearLayout>
-
         </androidx.cardview.widget.CardView>
 
         <!-- Repeat Pattern Section -->
@@ -307,10 +300,8 @@
                         android:layout_height="wrap_content"
                         android:text="Custom Days"
                         android:textSize="16sp" />
-
                 </RadioGroup>
 
-                <!-- Custom Days Selection -->
                 <LinearLayout
                     android:id="@+id/layoutCustomDays"
                     android:layout_width="match_parent"
@@ -375,10 +366,8 @@
                         android:layout_weight="1"
                         android:text="Sun"
                         android:textSize="12sp" />
-
                 </LinearLayout>
 
-                <!-- Number of Weeks for Custom Days -->
                 <LinearLayout
                     android:id="@+id/layoutNumberOfWeeks"
                     android:layout_width="match_parent"
@@ -403,11 +392,8 @@
                         android:text="4"
                         android:background="@drawable/spinner_background"
                         android:padding="8dp" />
-
                 </LinearLayout>
-
             </LinearLayout>
-
         </androidx.cardview.widget.CardView>
 
         <!-- Notes Section -->
@@ -443,9 +429,7 @@
                     android:inputType="textMultiLine"
                     android:background="@drawable/spinner_background"
                     android:padding="12dp" />
-
             </LinearLayout>
-
         </androidx.cardview.widget.CardView>
 
         <!-- Action Buttons -->
@@ -471,9 +455,6 @@
                 android:text="Create Schedule"
                 android:minWidth="120dp"
                 style="@style/Widget.AppCompat.Button.Colored" />
-
         </LinearLayout>
-
     </LinearLayout>
-
 </ScrollView>

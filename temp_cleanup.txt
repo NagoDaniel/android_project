@@ -1,0 +1,9 @@
+Files to delete (duplicates in root package):
+- AddHabitDialogFragment.kt
+- CategorySpinnerAdapter.kt
+- CreateScheduleActivity.kt
+- LoginActivity.kt
+- MainActivity.kt
+- RegisterActivity.kt
+- SplashActivity.kt
+

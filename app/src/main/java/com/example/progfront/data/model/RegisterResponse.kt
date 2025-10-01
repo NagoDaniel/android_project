@@ -1,4 +1,4 @@
-package com.example.progfront.network
+package com.example.progfront.data.model
 
 data class RegisterResponse(
     val message: String,

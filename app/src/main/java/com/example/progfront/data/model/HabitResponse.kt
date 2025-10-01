@@ -1,4 +1,4 @@
-package com.example.progfront.network
+package com.example.progfront.data.model
 
 data class HabitResponse(
     val id: Int,
@@ -9,3 +9,4 @@ data class HabitResponse(
     val createdAt: String,
     val updatedAt: String
 )
+

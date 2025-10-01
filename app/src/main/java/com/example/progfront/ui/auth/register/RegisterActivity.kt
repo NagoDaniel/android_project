@@ -1,14 +1,14 @@
-package com.example.progfront
+package com.example.progfront.ui.auth.register
 
 import android.content.Intent
 import android.os.Bundle
-import android.widget.Button
-import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import com.example.progfront.network.RegisterRequest
-import com.example.progfront.network.RegisterResponse
-import com.example.progfront.network.RetrofitClient
+import com.example.progfront.data.model.RegisterRequest
+import com.example.progfront.data.model.RegisterResponse
+import com.example.progfront.data.remote.RetrofitClient
+import com.example.progfront.databinding.ActivityRegisterBinding
+import com.example.progfront.ui.main.MainActivity
 import com.example.progfront.utils.TokenManager
 import retrofit2.Call
 import retrofit2.Callback
@@ -16,25 +16,21 @@ import retrofit2.Response
 
 class RegisterActivity : AppCompatActivity() {
 
+    private lateinit var binding: ActivityRegisterBinding
     private lateinit var tokenManager: TokenManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_register)
+        binding = ActivityRegisterBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
         tokenManager = TokenManager(this)
 
-        val usernameEditText = findViewById<EditText>(R.id.editTextUsername)
-        val emailEditText = findViewById<EditText>(R.id.editTextEmail)
-        val passwordEditText = findViewById<EditText>(R.id.editTextPassword)
-        val passwordConfirmEditText = findViewById<EditText>(R.id.editTextPasswordConfirm)
-        val registerButton = findViewById<Button>(R.id.buttonRegister)
-
-        registerButton.setOnClickListener {
-            val username = usernameEditText.text.toString()
-            val email = emailEditText.text.toString()
-            val password = passwordEditText.text.toString()
-            val confirmPassword = passwordConfirmEditText.text.toString()
+        binding.buttonRegister.setOnClickListener {
+            val username = binding.editTextUsername.text.toString()
+            val email = binding.editTextEmail.text.toString()
+            val password = binding.editTextPassword.text.toString()
+            val confirmPassword = binding.editTextPasswordConfirm.text.toString()
 
             if (password == confirmPassword) {
                 val registerRequest = RegisterRequest(username, email, password)
@@ -66,9 +62,10 @@ class RegisterActivity : AppCompatActivity() {
                     })
             } else {
                 // Passwords do not match, show error
-                passwordEditText.error = "Passwords do not match"
-                passwordConfirmEditText.error = "Passwords do not match"
+                binding.editTextPassword.error = "Passwords do not match"
+                binding.editTextPasswordConfirm.error = "Passwords do not match"
             }
         }
     }
 }
+

@@ -1,4 +1,4 @@
-package com.example.progfront.network
+package com.example.progfront.data.model
 
 data class HabitRequest(
     val name: String,
@@ -6,3 +6,4 @@ data class HabitRequest(
     val goal: String,
     val description: String? = null
 )
+

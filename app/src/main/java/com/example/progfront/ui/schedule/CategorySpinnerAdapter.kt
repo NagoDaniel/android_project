@@ -1,4 +1,4 @@
-package com.example.progfront
+package com.example.progfront.ui.schedule
 
 import android.content.Context
 import android.view.LayoutInflater
@@ -7,7 +7,8 @@ import android.view.ViewGroup
 import android.widget.BaseAdapter
 import android.widget.ImageView
 import android.widget.TextView
-import com.example.progfront.network.HabitCategoryResponse
+import com.example.progfront.R
+import com.example.progfront.data.model.HabitCategoryResponse
 import com.squareup.picasso.Picasso
 
 class CategorySpinnerAdapter(
@@ -49,3 +50,4 @@ class CategorySpinnerAdapter(
         return getView(position, convertView, parent)
     }
 }
+

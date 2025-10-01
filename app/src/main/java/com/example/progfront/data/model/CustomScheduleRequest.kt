@@ -1,4 +1,4 @@
-package com.example.progfront.network
+package com.example.progfront.data.model
 
 data class CustomScheduleRequest(
     val habitId: Int,
@@ -10,3 +10,4 @@ data class CustomScheduleRequest(
     val participantIds: List<Int>? = null,
     val notes: String? = null
 )
+

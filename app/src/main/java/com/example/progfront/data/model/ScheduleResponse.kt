@@ -1,4 +1,4 @@
-package com.example.progfront.network
+package com.example.progfront.data.model
 
 data class ScheduleResponse(
     val id: Int,
@@ -15,3 +15,4 @@ data class ScheduleResponse(
     val createdAt: String,
     val updatedAt: String
 )
+

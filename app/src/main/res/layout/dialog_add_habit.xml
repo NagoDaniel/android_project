@@ -106,7 +106,6 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Cancel"
-            android:minWidth="100dp"
             android:layout_marginEnd="12dp"
             style="@style/Widget.AppCompat.Button.Borderless" />
 
@@ -114,8 +113,7 @@
             android:id="@+id/buttonCreateHabit"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Create"
-            android:minWidth="100dp"
+            android:text="Add Habit"
             style="@style/Widget.AppCompat.Button.Colored" />
 
     </LinearLayout>

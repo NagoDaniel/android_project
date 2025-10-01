@@ -1,4 +1,4 @@
-package com.example.progfront.network
+package com.example.progfront.data.model
 
 data class RecurringScheduleRequest(
     val habitId: Int,
@@ -11,3 +11,4 @@ data class RecurringScheduleRequest(
     val participantIds: List<Int>? = null,
     val notes: String? = null
 )
+

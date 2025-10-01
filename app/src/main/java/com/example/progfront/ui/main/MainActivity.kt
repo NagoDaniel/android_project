@@ -1,15 +1,16 @@
-package com.example.progfront
+package com.example.progfront.ui.main
 
 import android.content.Intent
 import android.os.Bundle
-import com.google.android.material.bottomnavigation.BottomNavigationView
-import com.google.android.material.floatingactionbutton.FloatingActionButton
 import androidx.appcompat.app.AppCompatActivity
 import androidx.navigation.findNavController
 import androidx.navigation.ui.AppBarConfiguration
 import androidx.navigation.ui.setupActionBarWithNavController
 import androidx.navigation.ui.setupWithNavController
+import com.example.progfront.R
 import com.example.progfront.databinding.ActivityMainBinding
+import com.example.progfront.ui.schedule.CreateScheduleActivity
+import com.google.android.material.bottomnavigation.BottomNavigationView
 
 class MainActivity : AppCompatActivity() {
 
@@ -22,7 +23,6 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         val navView: BottomNavigationView = binding.navView
-        val fab: FloatingActionButton = binding.fab
 
         val navController = findNavController(R.id.nav_host_fragment_activity_main)
         // Passing each menu ID as a set of Ids because each
@@ -36,9 +36,10 @@ class MainActivity : AppCompatActivity() {
         navView.setupWithNavController(navController)
 
         // Setup floating action button click listener
-        fab.setOnClickListener {
+        binding.fab.setOnClickListener {
             val intent = Intent(this, CreateScheduleActivity::class.java)
             startActivity(intent)
         }
     }
 }
+
