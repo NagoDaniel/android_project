@@ -13,6 +13,6 @@ data class ScheduleResponse(
     val participantIds: List<Int>?,
     val habit: HabitResponse?,
     val createdAt: String,
-    val updatedAt: String
+    val updatedAt: String,
+    val progress: List<ProgressResponse>? // added progress history list
 )
-

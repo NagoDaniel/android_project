@@ -14,7 +14,8 @@ import java.util.Locale
 import java.util.TimeZone
 
 class ScheduleAdapter(
-    private val onStatusToggle: (ScheduleResponse) -> Unit
+    private val onStatusToggle: (ScheduleResponse) -> Unit,
+    private val onItemClick: (ScheduleResponse) -> Unit
 ) : RecyclerView.Adapter<ScheduleAdapter.ScheduleViewHolder>() {
 
     private val items = mutableListOf<ScheduleResponse>()
@@ -34,7 +35,7 @@ class ScheduleAdapter(
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ScheduleViewHolder {
         val view = LayoutInflater.from(parent.context).inflate(R.layout.item_schedule, parent, false)
-        return ScheduleViewHolder(view, ::isUpdating, onStatusToggle)
+        return ScheduleViewHolder(view, ::isUpdating, onStatusToggle, onItemClick)
     }
 
     override fun onBindViewHolder(holder: ScheduleViewHolder, position: Int) {
@@ -48,7 +49,8 @@ class ScheduleAdapter(
     class ScheduleViewHolder(
         itemView: View,
         private val isUpdating: (Int) -> Boolean,
-        private val onStatusToggle: (ScheduleResponse) -> Unit
+        private val onStatusToggle: (ScheduleResponse) -> Unit,
+        private val onItemClick: (ScheduleResponse) -> Unit
     ) : RecyclerView.ViewHolder(itemView) {
         private val textTime: TextView = itemView.findViewById(R.id.textTime)
         private val textHabitName: TextView = itemView.findViewById(R.id.textHabitName)
@@ -80,6 +82,8 @@ class ScheduleAdapter(
             textStatus.setOnClickListener {
                 if (!updating) onStatusToggle(item)
             }
+
+            itemView.setOnClickListener { onItemClick(item) }
         }
 
         private fun styleStatus(status: String) {

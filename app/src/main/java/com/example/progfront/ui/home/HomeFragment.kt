@@ -1,6 +1,7 @@
 package com.example.progfront.ui.home
 
 import android.app.DatePickerDialog
+import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
@@ -12,6 +13,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.progfront.data.model.ScheduleResponse
 import com.example.progfront.data.remote.RetrofitClient
 import com.example.progfront.databinding.FragmentHomeBinding
+import com.example.progfront.ui.schedule.ScheduleDetailActivity
 import com.example.progfront.utils.TokenManager
 import retrofit2.Call
 import retrofit2.Callback
@@ -51,7 +53,15 @@ class HomeFragment : Fragment() {
     }
 
     private fun setupRecycler() {
-        adapter = ScheduleAdapter { schedule -> toggleStatus(schedule) }
+        adapter = ScheduleAdapter(
+            onStatusToggle = { schedule -> toggleStatus(schedule) },
+            onItemClick = { schedule ->
+                val ctx = requireContext()
+                val intent = Intent(ctx, ScheduleDetailActivity::class.java)
+                intent.putExtra("schedule_id", schedule.id)
+                startActivity(intent)
+            }
+        )
         binding.recyclerSchedules.layoutManager = LinearLayoutManager(requireContext())
         binding.recyclerSchedules.adapter = adapter
         // Hide cache banner always (cache removed)
@@ -136,11 +146,9 @@ class HomeFragment : Fragment() {
 
     private fun toggleStatus(schedule: ScheduleResponse) {
         val token = tokenManager.getAccessToken() ?: return
-        val next = when (schedule.status.lowercase(Locale.getDefault())) {
-            "planned" -> "Completed"
-            "completed" -> "Planned"
-            else -> "Completed"
-        }
+        val sequence = listOf("Planned", "Completed", "Skipped")
+        val idx = sequence.indexOfFirst { it.equals(schedule.status, ignoreCase = true) }.let { if (it == -1) 0 else it }
+        val next = sequence[(idx + 1) % sequence.size]
         adapter.markUpdating(schedule.id, true)
         RetrofitClient.instance.updateScheduleStatus(
             "Bearer $token",
@@ -150,11 +158,7 @@ class HomeFragment : Fragment() {
             override fun onResponse(call: Call<ScheduleResponse>, response: Response<ScheduleResponse>) {
                 adapter.markUpdating(schedule.id, false)
                 if (response.isSuccessful) {
-                    val updated = response.body()
-                    if (updated != null) {
-                        // Re-fetch current day to stay consistent
-                        loadSchedules()
-                    }
+                    loadSchedules()
                 } else {
                     Toast.makeText(requireContext(), "Failed to update status", Toast.LENGTH_SHORT).show()
                 }

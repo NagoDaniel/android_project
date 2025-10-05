@@ -33,10 +33,15 @@ class AddHabitDialogFragment : DialogFragment() {
 
     override fun onAttach(context: Context) {
         super.onAttach(context)
-        listener = context as? OnHabitCreatedListener
+        // Prefer parent fragment if it implements the listener
+        listener = parentFragment as? OnHabitCreatedListener
         if (listener == null) {
-            throw RuntimeException("$context must implement OnHabitCreatedListener")
+            listener = context as? OnHabitCreatedListener
         }
+    }
+
+    fun setOnHabitCreatedListener(l: OnHabitCreatedListener) {
+        listener = l
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
