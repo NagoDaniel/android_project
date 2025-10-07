@@ -60,9 +60,13 @@ interface ApiService {
     @POST("/schedule/recurring/weekdays")
     fun createWeekdaySchedule(@Header("Authorization") token: String, @Body scheduleData: WeekdayScheduleRequest): Call<List<ScheduleResponse>>
 
+    // Schedules (query)
+    @GET("/schedule")
+    fun getAllSchedules(@Header("Authorization") token: String): Call<List<ScheduleResponse>>
+
     // Schedules (query) – confirmed endpoint form /schedule?day=YYYY-MM-DD
     @GET("/schedule")
-    fun getSchedulesForDay(@Header("Authorization") token: String, @Query("day") day: String): Call<List<ScheduleResponse>>
+    fun getSchedulesForDay(@Header("Authorization") token: String, @Query("date") day: String): Call<List<ScheduleResponse>>
 
     // Schedules (update)
     @PATCH("/schedule/{id}")

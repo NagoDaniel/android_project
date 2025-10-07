@@ -119,8 +119,7 @@ class ProfileFragment : Fragment(), AddHabitDialogFragment.OnHabitCreatedListene
                         val list = response.body().orEmpty()
                         habitsAdapter.submit(list)
                         binding.textHabitsEmpty.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
-                        // Kick off monthly progress aggregation
-                        if (list.isNotEmpty()) computeMonthlyHabitProgress(list)
+                        if (list.isNotEmpty()) computeHabitProgressFromAllSchedules(list as MutableList<HabitResponse>)
                     } else {
                         Toast.makeText(requireContext(), getString(R.string.profile_habits_failed), Toast.LENGTH_SHORT).show()
                     }
@@ -137,7 +136,6 @@ class ProfileFragment : Fragment(), AddHabitDialogFragment.OnHabitCreatedListene
         binding.textEmail.text = profile.email
         binding.textDescription.text = profile.description.orEmpty()
         binding.textDescription.visibility = if (profile.description.isNullOrBlank()) View.GONE else View.VISIBLE
-        // Decide image source preference: URL first, fallback to base64
         val chosen = when {
             !profile.profileImageUrl.isNullOrBlank() -> profile.profileImageUrl
             !profile.profileImageBase64.isNullOrBlank() -> {
@@ -152,7 +150,6 @@ class ProfileFragment : Fragment(), AddHabitDialogFragment.OnHabitCreatedListene
 
     private fun loadProfileImage(raw: String?) {
         if (raw.isNullOrBlank()) return
-        // base64 variants
         if (raw.startsWith("data:image") || raw.contains(";base64,")) {
             val base64Part = raw.substringAfter(",", "")
             try {
@@ -178,7 +175,6 @@ class ProfileFragment : Fragment(), AddHabitDialogFragment.OnHabitCreatedListene
     private fun normalizeImageUrl(raw: String): String {
         val trimmed = raw.trim()
         if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) return trimmed
-        // ensure no duplicate slashes
         val base = getBaseUrl().trimEnd('/')
         val path = trimmed.trimStart('/')
         return "$base/$path"
@@ -260,7 +256,7 @@ class ProfileFragment : Fragment(), AddHabitDialogFragment.OnHabitCreatedListene
 
     private fun performLogout() {
         val bearer = tokenManager.getBearerToken()
-        tokenManager.clearTokens() // clear locally regardless
+        tokenManager.clearTokens()
         if (bearer == null) { navigateToLogin(); return }
         RetrofitClient.instance.logout(bearer)
             .enqueue(object : Callback<Void> {
@@ -289,78 +285,81 @@ class ProfileFragment : Fragment(), AddHabitDialogFragment.OnHabitCreatedListene
         binding.textErrorProfile.text = msg
     }
 
-    // === Monthly per-habit progress aggregation ===
-    private fun computeMonthlyHabitProgress(habits: List<HabitResponse>) {
+    // === Per-habit progress aggregation using all schedules up to today ===
+    private fun computeHabitProgressFromAllSchedules(habits: List<HabitResponse>) {
         val bearer = tokenManager.getBearerToken() ?: return
         if (!isAdded) return
         showLoading(true)
 
-        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-        val cal = Calendar.getInstance()
-        // Include today and go back 15 days => 16 days total
-        val days = mutableListOf<String>()
-        for (i in 0..15) { // 0..15 inclusive
-            days.add(sdf.format(cal.time))
-            cal.add(Calendar.DAY_OF_MONTH, -1)
-        }
-
-        val scheduleTotals = mutableMapOf<Int, Int>() // habitId -> total schedules
-        val scheduleCompleted = mutableMapOf<Int, Int>() // habitId -> completed schedules
         val habitIds = habits.map { it.id }.toSet()
+        val totals = mutableMapOf<Int, Int>()
+        val completed = mutableMapOf<Int, Int>()
 
-        val handler = Handler(Looper.getMainLooper())
-        val delayMs = 50L
+        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+        val today = Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }.time
 
-        fun finish() {
-            // Build percent map
-            val percents = mutableMapOf<Int, Int>()
-            for (hid in habitIds) {
-                val t = scheduleTotals[hid] ?: 0
-                val c = scheduleCompleted[hid] ?: 0
-                val percent = if (t > 0) (c * 100 / t) else 0
-                percents[hid] = percent
-            }
-            if (isAdded) {
-                habitsAdapter.updateProgress(percents)
-                showLoading(false)
-            }
-        }
-
-        fun processDay(index: Int) {
-            if (!isAdded) { showLoading(false); return }
-            if (index >= days.size) { finish(); return }
-            val day = days[index]
-            RetrofitClient.instance.getSchedulesForDay(bearer, day)
-                .enqueue(object : Callback<List<ScheduleResponse>> {
-                    override fun onResponse(call: Call<List<ScheduleResponse>>, response: Response<List<ScheduleResponse>>) {
-                        if (response.isSuccessful) {
-                            val schedules = response.body().orEmpty()
-                            Log.d(TAG, "Day=$day schedules=${schedules.size}")
-                            for (sch in schedules) {
-                                val hid = sch.habitId
-                                if (!habitIds.contains(hid)) continue
-                                scheduleTotals[hid] = (scheduleTotals[hid] ?: 0) + 1
-                                val completedForSchedule = when {
-                                    !sch.progress.isNullOrEmpty() -> sch.progress.any { it.is_completed }
-                                    else -> sch.status.equals("Completed", ignoreCase = true)
-                                }
-                                if (completedForSchedule) {
-                                    scheduleCompleted[hid] = (scheduleCompleted[hid] ?: 0) + 1
-                                }
+        RetrofitClient.instance.getAllSchedules(bearer)
+            .enqueue(object : Callback<List<ScheduleResponse>> {
+                override fun onResponse(
+                    call: Call<List<ScheduleResponse>>,
+                    response: Response<List<ScheduleResponse>>
+                ) {
+                    if (response.isSuccessful) {
+                        val schedules = response.body().orEmpty()
+                        Log.d(TAG, "computeHabitProgress: fetched ${schedules.size} schedules total")
+                        for (sch in schedules) {
+                            val hid = sch?.habit?.id ?: sch.habitId ?: continue
+                            val status = sch.status
+                            val dateStr = sch.date
+                            if (!habitIds.contains(hid)) {
+                                Log.d(TAG, "skip schedule id=${sch.id} habitId=$hid not in user's habits")
+                                //continue
                             }
-                        } else {
-                            Log.e(TAG, "getSchedulesForDay($day) failed code=${response.code()}")
+                            val dateOk = try {
+                                val d = sdf.parse(dateStr)
+                                d != null && !d.after(today)
+                            } catch (e: Exception) {
+                                Log.w(TAG, "Failed to parse schedule date='$dateStr': ${e.message}")
+                                false
+                            }
+                            if (!dateOk) {
+                                Log.d(TAG, "skip schedule id=${sch.id} habitId=$hid date=$dateStr in future")
+                                continue
+                            }
+                            totals[hid] = (totals[hid] ?: 0) + 1
+                            val isDone = status.equals("Completed", ignoreCase = true)
+                            if (isDone) completed[hid] = (completed[hid] ?: 0) + 1
+                            Log.d(
+                                TAG,
+                                "count schedule id=${sch.id} habitId=$hid date=$dateStr status=$status -> total=${totals[hid]} completed=${completed[hid] ?: 0}"
+                            )
                         }
-                        handler.postDelayed({ processDay(index + 1) }, delayMs)
+                        // Log per-habit totals
+                        Log.d(TAG, "Habit IDS: $habitIds")
+                        for (hid in habitIds) {
+                            Log.d(TAG, "habitId=$hid totals=${totals[hid] ?: 0} completed=${completed[hid] ?: 0}")
+                        }
+                        val percents = habitIds.associateWith { hid ->
+                            val t = totals[hid] ?: 0
+                            val c = completed[hid] ?: 0
+                            val p = if (t > 0) (c * 100 / t) else 0
+                            Log.d(TAG, "habitId=$hid percent=$p (c=$c/t=$t)")
+                            p
+                        }
+                        if (isAdded) {
+                            habitsAdapter.updateProgress(percents)
+                            showLoading(false)
+                        }
+                    } else {
+                        Log.e(TAG, "getAllSchedules failed code=${response.code()} body=${response.errorBody()?.string()}")
+                        showLoading(false)
                     }
-                    override fun onFailure(call: Call<List<ScheduleResponse>>, t: Throwable) {
-                        Log.e(TAG, "getSchedulesForDay($day) failure: ${t.message}")
-                        handler.postDelayed({ processDay(index + 1) }, delayMs)
-                    }
-                })
-        }
-
-        processDay(0)
+                }
+                override fun onFailure(call: Call<List<ScheduleResponse>>, t: Throwable) {
+                    Log.e(TAG, "getAllSchedules network failure: ${t.message}", t)
+                    showLoading(false)
+                }
+            })
     }
 
     private fun handleImageSelected(uri: Uri) {
@@ -380,7 +379,6 @@ class ProfileFragment : Fragment(), AddHabitDialogFragment.OnHabitCreatedListene
                         Log.d(TAG, "Upload response: ${Gson().toJson(updated)}")
                         if (updated != null) {
                             currentProfile = updated
-                            // Rebind handles base64 fallback automatically
                             bindProfile(updated)
                             Toast.makeText(requireContext(), getString(R.string.profile_image_upload_success), Toast.LENGTH_SHORT).show()
                         }
@@ -413,17 +411,18 @@ class ProfileFragment : Fragment(), AddHabitDialogFragment.OnHabitCreatedListene
             }
             tempFile
         } catch (e: Exception) {
+            Log.e(TAG, "copyUriToTempFile failed: ${e.message}")
             null
         }
-    }
-
-    override fun onHabitCreated(habit: HabitResponse) {
-        // Refresh habits list after new habit is created
-        currentProfile?.let { fetchHabits(it.id) }
     }
 
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
+    }
+
+    override fun onHabitCreated(habit: HabitResponse) {
+        // After a new habit is created, refresh the habits list (and progress)
+        currentProfile?.id?.let { fetchHabits(it) }
     }
 }
