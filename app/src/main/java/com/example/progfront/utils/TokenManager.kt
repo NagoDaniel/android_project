@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.SharedPreferences
 
 class TokenManager(context: Context) {
+
+    // could use encrypted one, bit it will do
     private val prefs: SharedPreferences = context.getSharedPreferences("auth_prefs", Context.MODE_PRIVATE)
 
     companion object {

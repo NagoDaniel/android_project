@@ -3,14 +3,13 @@ package com.example.progfront.ui.auth.login
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
-import android.widget.Button
-import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.example.progfront.R
 import com.example.progfront.data.model.LoginRequest
 import com.example.progfront.data.model.RegisterResponse
 import com.example.progfront.data.remote.RetrofitClient
+import com.example.progfront.databinding.ActivityLoginBinding
 import com.example.progfront.ui.auth.register.RegisterActivity
 import com.example.progfront.ui.main.MainActivity
 import com.example.progfront.utils.TokenManager
@@ -21,31 +20,26 @@ import retrofit2.Response
 class LoginActivity : AppCompatActivity() {
 
     private lateinit var tokenManager: TokenManager
-    private lateinit var editTextEmail: EditText
-    private lateinit var editTextPassword: EditText
-    private lateinit var buttonLogin: Button
-    private lateinit var buttonGoToRegister: Button
+    private lateinit var binding: ActivityLoginBinding
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_login)
+        // Inflate the layout via View Binding and set as content view
+        binding = ActivityLoginBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
         tokenManager = TokenManager(this)
 
-        editTextEmail = findViewById(R.id.editTextEmail)
-        editTextPassword = findViewById(R.id.editTextPassword)
-        buttonLogin = findViewById(R.id.buttonLogin)
-        buttonGoToRegister = findViewById(R.id.buttonGoToRegister)
-
-        buttonLogin.setOnClickListener { attemptLogin() }
-        buttonGoToRegister.setOnClickListener {
+        // Set listeners using binding references
+        binding.buttonLogin.setOnClickListener { attemptLogin() }
+        binding.buttonGoToRegister.setOnClickListener {
             startActivity(Intent(this, RegisterActivity::class.java))
         }
     }
 
     private fun attemptLogin() {
-        val email = editTextEmail.text.toString().trim()
-        val password = editTextPassword.text.toString()
+        val email = binding.editTextEmail.text.toString().trim()
+        val password = binding.editTextPassword.text.toString()
 
         if (email.isEmpty() || password.isEmpty()) {
             Toast.makeText(this, "Email & password required", Toast.LENGTH_SHORT).show()

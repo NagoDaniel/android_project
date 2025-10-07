@@ -1,5 +1,6 @@
 package com.example.progfront.ui.splash
 
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
@@ -15,6 +16,7 @@ import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
 
+@SuppressLint("CustomSplashScreen")
 class SplashActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivitySplashBinding
@@ -38,7 +40,7 @@ class SplashActivity : AppCompatActivity() {
 
         if (refreshToken.isNullOrBlank()) {
             if (!accessToken.isNullOrBlank()) {
-                Log.d(TAG, "No refresh token; validating existing access token via lightweight API call")
+                Log.d(TAG, "No refresh token; validating existing access token")
                 validateAccessToken(accessToken)
             } else {
                 Log.d(TAG, "No tokens at all – navigating to Login")

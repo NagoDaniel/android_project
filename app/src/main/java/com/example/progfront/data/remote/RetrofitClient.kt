@@ -6,9 +6,8 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
 object RetrofitClient {
-    // Added trailing slash required by Retrofit
-    //private const val BASE_URL = "http://10.0.2.2:8080/"
-    private const val BASE_URL = "http://192.168.87.1:8080/"
+    private const val BASE_URL = "http://10.0.2.2:8080/"
+    //private const val BASE_URL = "http://192.168.87.1:8080/"
 
 
     private val logging = HttpLoggingInterceptor().apply {
