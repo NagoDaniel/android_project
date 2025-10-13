@@ -16,7 +16,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Create Schedule"
+            android:text="@string/create_schedule"
             android:textSize="28sp"
             android:textStyle="bold"
             android:textColor="?android:attr/textColorPrimary"
@@ -112,7 +112,7 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="Select Date"
+                        android:text="@string/select_date"
                         android:background="@drawable/spinner_background"
                         android:padding="12dp"
                         style="@style/Widget.AppCompat.Button.Borderless" />
@@ -306,14 +306,14 @@
                     android:id="@+id/layoutCustomDays"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal"
+                    android:orientation="vertical"
                     android:visibility="gone"
                     android:background="@drawable/spinner_background"
                     android:padding="12dp">
 
                     <CheckBox
                         android:id="@+id/checkboxMonday"
-                        android:layout_width="0dp"
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:text="Mon"
@@ -321,7 +321,7 @@
 
                     <CheckBox
                         android:id="@+id/checkboxTuesday"
-                        android:layout_width="0dp"
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:text="Tue"
@@ -329,7 +329,7 @@
 
                     <CheckBox
                         android:id="@+id/checkboxWednesday"
-                        android:layout_width="0dp"
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:text="Wed"
@@ -337,7 +337,7 @@
 
                     <CheckBox
                         android:id="@+id/checkboxThursday"
-                        android:layout_width="0dp"
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:text="Thu"
@@ -345,7 +345,7 @@
 
                     <CheckBox
                         android:id="@+id/checkboxFriday"
-                        android:layout_width="0dp"
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:text="Fri"
@@ -353,7 +353,7 @@
 
                     <CheckBox
                         android:id="@+id/checkboxSaturday"
-                        android:layout_width="0dp"
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:text="Sat"
@@ -361,7 +361,7 @@
 
                     <CheckBox
                         android:id="@+id/checkboxSunday"
-                        android:layout_width="0dp"
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:text="Sun"
@@ -445,7 +445,9 @@
                 android:layout_height="wrap_content"
                 android:text="Cancel"
                 android:minWidth="100dp"
+                android:maxHeight="46dp"
                 android:layout_marginEnd="12dp"
+                android:background="@color/black"
                 style="@style/Widget.AppCompat.Button.Borderless" />
 
             <Button
@@ -454,6 +456,7 @@
                 android:layout_height="wrap_content"
                 android:text="Create Schedule"
                 android:minWidth="120dp"
+                android:maxHeight="46dp"
                 style="@style/Widget.AppCompat.Button.Colored" />
         </LinearLayout>
     </LinearLayout>

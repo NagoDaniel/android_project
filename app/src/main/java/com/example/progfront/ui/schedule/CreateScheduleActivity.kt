@@ -33,19 +33,21 @@ class CreateScheduleActivity : AppCompatActivity(), AddHabitDialogFragment.OnHab
 
         setupTimeSpinners()
         setupListeners()
+        // Ensure visibility reflects the initially checked radio option
+        updateRepeatUi(binding.radioGroupRepeatPattern.checkedRadioButtonId)
         loadHabits()
         updateDateButton()
     }
 
     private fun setupTimeSpinners() {
-        // Setup hour spinners (0-23)
-        val hours = (0..23).map { String.format("%02d", it) }
+        // hour spinners (0-23)
+        val hours = (0..23).map { it.toString().padStart(2, '0') }
         val hourAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, hours)
         hourAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         binding.spinnerStartHour.adapter = hourAdapter
         binding.spinnerEndHour.adapter = hourAdapter
 
-        // Setup minute spinners (0, 15, 30, 45)
+        // minute spinners (0, 15, 30, 45)
         val minutes = listOf("00", "15", "30", "45")
         val minuteAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, minutes)
         minuteAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
@@ -75,6 +77,19 @@ class CreateScheduleActivity : AppCompatActivity(), AddHabitDialogFragment.OnHab
         binding.buttonCreate.setOnClickListener {
             createSchedule()
         }
+
+        // Toggle custom day checkboxes and weeks field based on selection
+        binding.radioGroupRepeatPattern.setOnCheckedChangeListener { _, checkedId ->
+            updateRepeatUi(checkedId)
+        }
+
+
+    }
+
+    private fun updateRepeatUi(checkedId: Int) {
+        val showCustom = checkedId == binding.radioButtonCustomDays.id
+        binding.layoutCustomDays.visibility = if (showCustom) View.VISIBLE else View.GONE
+        binding.layoutNumberOfWeeks.visibility = if (showCustom) View.VISIBLE else View.GONE
     }
 
     private fun loadHabits() {
@@ -210,7 +225,7 @@ class CreateScheduleActivity : AppCompatActivity(), AddHabitDialogFragment.OnHab
 
         val request = com.example.progfront.data.model.CustomScheduleRequest(
             habitId = habitId,
-            date = date, // FIX: previously incorrectly set to startTime
+            date = date,
             start_time = startTime,
             is_custom = true,
             end_time = safeEndTime,

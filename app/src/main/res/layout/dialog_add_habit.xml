@@ -90,7 +90,7 @@
         <Spinner
             android:id="@+id/spinnerHabitCategory"
             android:layout_width="match_parent"
-            android:layout_height="48dp"
+            android:layout_height="77dp"
             android:padding="8dp" />
 
     </LinearLayout>

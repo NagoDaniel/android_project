@@ -74,4 +74,11 @@
     <string name="schedule_deleted">Schedule deleted</string>
     <string name="schedule_delete_failed">Failed to delete schedule</string>
     <string name="schedule_edit_notes">Edit Notes</string>
+    <string name="no_schedules_for_this_day">No schedules for this day</string>
+    <string name="today_s_plan">Today\'s Plan</string>
+    <string name="change">Change</string>
+    <string name="create_schedule">Create Schedule</string>
+    <string name="select_date">Select Date</string>
+    <string name="username">Username</string>
+    <string name="email_example_com">email@example.com</string>
 </resources>

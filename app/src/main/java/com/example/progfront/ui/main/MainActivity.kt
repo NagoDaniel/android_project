@@ -49,7 +49,7 @@ class MainActivity : AppCompatActivity() {
         setupActionBarWithNavController(navController, appBarConfiguration)
         navView.setupWithNavController(navController)
 
-        // Hide FAB on profile (navigation_notifications repurposed as profile) and show elsewhere
+        // Hide FAB on profile
         navController.addOnDestinationChangedListener { _, destination, _ ->
             // Profile screen is mapped to navigation_notifications per existing setup
             isProfileDestination = destination.id == R.id.navigation_notifications
@@ -61,7 +61,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Setup floating action button click listener
         binding.fab.setOnClickListener {
             val intent = Intent(this, CreateScheduleActivity::class.java)
             startActivity(intent)

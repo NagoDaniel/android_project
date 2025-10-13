@@ -36,10 +36,14 @@ import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import com.google.android.material.button.MaterialButton
 import com.google.gson.Gson
+import com.example.progfront.databinding.ActivityScheduleDetailBinding
 
 class ScheduleDetailActivity : AppCompatActivity() {
 
     private lateinit var tokenManager: TokenManager
+
+    // View Binding
+    private lateinit var binding: ActivityScheduleDetailBinding
 
     private lateinit var textHabitName: TextView
     private lateinit var textHabitDescription: TextView
@@ -77,7 +81,9 @@ class ScheduleDetailActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_schedule_detail)
+        // Inflate binding and set content view
+        binding = ActivityScheduleDetailBinding.inflate(layoutInflater)
+        setContentView(binding.root)
         tokenManager = TokenManager(this)
         bindViews()
         scheduleId = intent.getIntExtra("schedule_id", -1)
@@ -109,27 +115,29 @@ class ScheduleDetailActivity : AppCompatActivity() {
         }
     }
 
+    // no view binding initially, just replaced this
     private fun bindViews() {
-        textHabitName = findViewById(R.id.textHabitName)
-        textHabitDescription = findViewById(R.id.textHabitDescription)
-        textScheduleTime = findViewById(R.id.textScheduleTime)
-        textStatusDetail = findViewById(R.id.textStatusDetail)
-        textGoal = findViewById(R.id.textGoal)
-        progressCircle = findViewById(R.id.progressCircle)
-        textProgressPercent = findViewById(R.id.textProgressPercent)
-        textNotes = findViewById(R.id.textNotes)
+        // Map all referenced views from binding
+        textHabitName = binding.textHabitName
+        textHabitDescription = binding.textHabitDescription
+        textScheduleTime = binding.textScheduleTime
+        textStatusDetail = binding.textStatusDetail
+        textGoal = binding.textGoal
+        progressCircle = binding.progressCircle
+        textProgressPercent = binding.textProgressPercent
+        textNotes = binding.textNotes
         // Inline notes editing views
-        inputNotesLayout = findViewById(R.id.inputNotesLayout)
-        inputNotesEdit = findViewById(R.id.inputNotesEdit)
-        buttonEditNotes = findViewById(R.id.buttonEditNotes)
-        buttonSaveNotes = findViewById(R.id.buttonSaveNotes)
-        buttonCancelNotes = findViewById(R.id.buttonCancelNotes)
+        inputNotesLayout = binding.inputNotesLayout
+        inputNotesEdit = binding.inputNotesEdit
+        buttonEditNotes = binding.buttonEditNotes
+        buttonSaveNotes = binding.buttonSaveNotes
+        buttonCancelNotes = binding.buttonCancelNotes
 
-        recycler = findViewById(R.id.recyclerProgress)
-        textEmpty = findViewById(R.id.textEmptyProgress)
-        loading = findViewById(R.id.loading)
-        textError = findViewById(R.id.textError)
-        fabAdd = findViewById(R.id.fabAddProgress)
+        recycler = binding.recyclerProgress
+        textEmpty = binding.textEmptyProgress
+        loading = binding.loading
+        textError = binding.textError
+        fabAdd = binding.fabAddProgress
         recycler.layoutManager = LinearLayoutManager(this)
 
         // Setup notes edit handlers

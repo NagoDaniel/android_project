@@ -53,7 +53,7 @@
                             android:layout_height="wrap_content"
                             android:textStyle="bold"
                             android:textSize="24sp"
-                            android:text="Username" />
+                            android:text="@string/username" />
 
                         <TextView
                             android:id="@+id/textEmail"
@@ -61,7 +61,7 @@
                             android:layout_height="wrap_content"
                             android:textSize="16sp"
                             android:textColor="@android:color/darker_gray"
-                            android:text="email@example.com" />
+                            android:text="@string/email_example_com" />
 
                         <TextView
                             android:id="@+id/textDescription"
@@ -107,7 +107,11 @@
                 android:id="@+id/recyclerHabits"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:paddingTop="4dp" />
+                android:paddingTop="4dp"
+                android:layout_marginBottom="16dp"
+                android:maxHeight="200dp"
+                android:paddingBottom="100dp"
+                />
 
             <TextView
                 android:id="@+id/textHabitsEmpty"
