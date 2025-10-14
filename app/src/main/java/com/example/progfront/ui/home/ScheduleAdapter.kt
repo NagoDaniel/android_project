@@ -24,6 +24,8 @@ class ScheduleAdapter(
     fun submitList(list: List<ScheduleResponse>) {
         items.clear()
         items.addAll(list)
+        // Reset any in-flight updating flags because fresh data arrived
+        updatingIds.clear()
         notifyDataSetChanged()
     }
 

@@ -32,6 +32,8 @@ class HomeFragment : Fragment() {
 
     private val viewModel: HomeViewModel by viewModels()
 
+    private var pendingStatusUpdateId: Int? = null
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -114,14 +116,16 @@ class HomeFragment : Fragment() {
         viewModel.statusUpdateResult.observe(viewLifecycleOwner) { result ->
             when (result) {
                 is Result.Success -> {
+                    pendingStatusUpdateId?.let { adapter.markUpdating(it, false) }
+                    pendingStatusUpdateId = null
                     loadSchedules()
                 }
                 is Result.Error -> {
+                    pendingStatusUpdateId?.let { adapter.markUpdating(it, false) }
+                    pendingStatusUpdateId = null
                     Toast.makeText(requireContext(), "Failed to update status", Toast.LENGTH_SHORT).show()
                 }
-                is Result.Loading -> {
-                    // Already showing loading on item
-                }
+                is Result.Loading -> { /* per-item loading already shown */ }
             }
         }
     }
@@ -162,6 +166,7 @@ class HomeFragment : Fragment() {
         val idx = sequence.indexOfFirst { it.equals(schedule.status, ignoreCase = true) }.let { if (it == -1) 0 else it }
         val next = sequence[(idx + 1) % sequence.size]
         adapter.markUpdating(schedule.id, true)
+        pendingStatusUpdateId = schedule.id
         viewModel.toggleScheduleStatus(schedule.id, next)
     }
 
