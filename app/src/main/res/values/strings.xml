@@ -81,4 +81,9 @@
     <string name="select_date">Select Date</string>
     <string name="username">Username</string>
     <string name="email_example_com">email@example.com</string>
+    <string name="schedule_habit_fallback">Habit #%1$d</string>
+    <string name="schedule_invalid_id">Invalid schedule</string>
+    <string name="schedule_progress_list_primary">%1$s • %2$s</string>
+    <string name="schedule_progress_list_secondary_with_notes">%1$s | %2$s</string>
+    <string name="auth_not_authenticated">Not authenticated</string>
 </resources>

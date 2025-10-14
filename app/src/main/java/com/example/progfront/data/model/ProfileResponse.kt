@@ -2,7 +2,6 @@ package com.example.progfront.data.model
 
 import com.google.gson.annotations.SerializedName
 
-// Extended with alternate fields and an explicit base64 field so we can reliably pick whichever backend provides.
 data class ProfileResponse(
     val id: Int,
     val email: String,

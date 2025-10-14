@@ -63,9 +63,9 @@ class ScheduleAdapter(
             "yyyy-MM-dd'T'HH:mm:ss.SSS",
             "yyyy-MM-dd'T'HH:mm:ss"
         )
-        private val outputTime = SimpleDateFormat("HH:mm", Locale.getDefault())
-        private val utcZone = TimeZone.getTimeZone("UTC")
 
+        private val utcZone = TimeZone.getTimeZone("UTC")
+        private val outputTime = SimpleDateFormat("HH:mm", Locale.getDefault()).apply { timeZone = utcZone }
         fun bind(item: ScheduleResponse) {
             textTime.text = formatTime(item.start_time)
             textHabitName.text = item.habit?.name ?: "Habit #${item.habitId ?: "?"}"
@@ -108,14 +108,20 @@ class ScheduleAdapter(
         }
 
         private fun formatTime(raw: String): String {
+
+            val tIndex = raw.indexOf('T')
+            if (tIndex >= 0 && raw.length >= tIndex + 6) {
+                val candidate = raw.substring(tIndex + 1, tIndex + 6)
+                if (candidate.matches(Regex("\\d{2}:\\d{2}"))) return candidate
+            }
+            // Fallback to previous parsing approach if direct extraction fails.
             patterns.forEach { p ->
                 try {
                     val sdf = SimpleDateFormat(p, Locale.getDefault())
                     if (p.contains("'Z'")) sdf.timeZone = utcZone
                     val date = sdf.parse(raw)
                     if (date != null) return outputTime.format(date)
-                } catch (_: ParseException) {
-                }
+                } catch (_: ParseException) {}
             }
             return raw.substringAfter('T').take(5)
         }
