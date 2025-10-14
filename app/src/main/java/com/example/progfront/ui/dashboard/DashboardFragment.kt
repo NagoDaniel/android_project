@@ -6,14 +6,13 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.viewModels
 import androidx.lifecycle.ViewModelProvider
-import com.example.progfront.data.model.ScheduleResponse
-import com.example.progfront.data.remote.RetrofitClient
+import androidx.lifecycle.lifecycleScope
+import com.example.progfront.data.Result
 import com.example.progfront.databinding.FragmentDashboardBinding
 import com.example.progfront.utils.TokenManager
-import retrofit2.Call
-import retrofit2.Callback
-import retrofit2.Response
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -25,18 +24,18 @@ class DashboardFragment : Fragment() {
 
     private lateinit var tokenManager: TokenManager
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+    private val viewModel: DashboardViewModel by viewModels()
 
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        val dashboardViewModel = ViewModelProvider(this).get(DashboardViewModel::class.java)
         _binding = FragmentDashboardBinding.inflate(inflater, container, false)
         val root: View = binding.root
         tokenManager = TokenManager(requireContext())
 
-        dashboardViewModel.text.observe(viewLifecycleOwner) {
+        viewModel.text.observe(viewLifecycleOwner) {
             binding.textDashboard.text = it
         }
 
@@ -70,67 +69,47 @@ class DashboardFragment : Fragment() {
             probe.add(Calendar.DAY_OF_MONTH, 1)
         }
 
-        var fetched = 0
-        fun fetchNextDay() {
-            if (fetched >= days.size) {
-                if (toDeleteIds.isEmpty()) {
-                    binding.textDeleteProgress.text = "No schedules found in window"
-                    binding.buttonDeleteAllSchedules.isEnabled = true
-                } else {
-                    binding.textDeleteProgress.text = "Deleting ${toDeleteIds.size} schedules..."
-                    performDeletes(token, toDeleteIds.toList())
+        viewLifecycleOwner.lifecycleScope.launch {
+            var fetched = 0
+            for (day in days) {
+                fetched++
+                val result = viewModel.getSchedulesForDay(day)
+                when (result) {
+                    is Result.Success -> {
+                        result.data.forEach { toDeleteIds.add(it.id) }
+                    }
+                    is Result.Error -> {
+                        // Continue on error
+                    }
+                    is Result.Loading -> {}
                 }
-                return
+                binding.textDeleteProgress.text = "Collected ${toDeleteIds.size} ids (day $fetched/${days.size})"
             }
-            val day = days[fetched]
-            fetched++
-            RetrofitClient.instance.getSchedulesForDay("Bearer $token", day)
-                .enqueue(object : Callback<List<ScheduleResponse>> {
-                    override fun onResponse(
-                        call: Call<List<ScheduleResponse>>,
-                        response: Response<List<ScheduleResponse>>
-                    ) {
-                        if (response.isSuccessful) {
-                            response.body()?.forEach { toDeleteIds.add(it.id) }
-                        }
-                        binding.textDeleteProgress.text = "Collected ${toDeleteIds.size} ids (day $fetched/${days.size})"
-                        fetchNextDay()
-                    }
 
-                    override fun onFailure(call: Call<List<ScheduleResponse>>, t: Throwable) {
-                        binding.textDeleteProgress.text = "Error fetching day $day: ${t.message}"
-                        fetchNextDay() // continue
-                    }
-                })
+            if (toDeleteIds.isEmpty()) {
+                binding.textDeleteProgress.text = "No schedules found in window"
+                binding.buttonDeleteAllSchedules.isEnabled = true
+            } else {
+                binding.textDeleteProgress.text = "Deleting ${toDeleteIds.size} schedules..."
+                performDeletes(toDeleteIds.toList())
+            }
         }
-        fetchNextDay()
     }
 
-    private fun performDeletes(token: String, ids: List<Int>) {
-        var deleted = 0
-        fun deleteNext(index: Int) {
-            if (index >= ids.size) {
-                binding.textDeleteProgress.text = "Deleted $deleted / ${ids.size} schedules"
-                binding.buttonDeleteAllSchedules.isEnabled = true
-                Toast.makeText(requireContext(), "Delete complete", Toast.LENGTH_SHORT).show()
-                return
+    private fun performDeletes(ids: List<Int>) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            var deleted = 0
+            for ((index, id) in ids.withIndex()) {
+                binding.textDeleteProgress.text = "Deleting ($deleted/${ids.size}) id=$id"
+                val result = viewModel.deleteSchedule(id)
+                if (result is Result.Success) {
+                    deleted++
+                }
             }
-            val id = ids[index]
-            binding.textDeleteProgress.text = "Deleting ($deleted/${ids.size}) id=$id"
-            RetrofitClient.instance.deleteSchedule("Bearer $token", id)
-                .enqueue(object : Callback<Void> {
-                    override fun onResponse(call: Call<Void>, response: Response<Void>) {
-                        if (response.isSuccessful) deleted++
-                        deleteNext(index + 1)
-                    }
-
-                    override fun onFailure(call: Call<Void>, t: Throwable) {
-                        // Skip failure and continue
-                        deleteNext(index + 1)
-                    }
-                })
+            binding.textDeleteProgress.text = "Deleted $deleted / ${ids.size} schedules"
+            binding.buttonDeleteAllSchedules.isEnabled = true
+            Toast.makeText(requireContext(), "Delete complete", Toast.LENGTH_SHORT).show()
         }
-        deleteNext(0)
     }
 
     override fun onDestroyView() {

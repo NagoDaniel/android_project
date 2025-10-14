@@ -12,12 +12,13 @@ import android.widget.EditText
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.viewModels
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.progfront.R
+import com.example.progfront.data.Result
 import com.example.progfront.data.model.HabitResponse
 import com.example.progfront.data.model.ProfileResponse
 import com.example.progfront.data.model.UpdateProfileRequest
-import com.example.progfront.data.model.ScheduleResponse
 import com.example.progfront.data.remote.RetrofitClient
 import com.example.progfront.ui.auth.login.LoginActivity
 import com.example.progfront.ui.schedule.AddHabitDialogFragment
@@ -30,17 +31,11 @@ import okhttp3.RequestBody.Companion.asRequestBody
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
-import retrofit2.Call
-import retrofit2.Callback
-import retrofit2.Response
 import com.example.progfront.databinding.FragmentProfileBinding
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
-import java.util.concurrent.atomic.AtomicInteger
-import android.os.Handler
-import android.os.Looper
 
 class ProfileFragment : Fragment(), AddHabitDialogFragment.OnHabitCreatedListener {
 
@@ -50,6 +45,8 @@ class ProfileFragment : Fragment(), AddHabitDialogFragment.OnHabitCreatedListene
     private lateinit var tokenManager: TokenManager
     private var currentProfile: ProfileResponse? = null
     private val habitsAdapter = ProfileHabitsAdapter()
+
+    private val viewModel: ProfileViewModel by viewModels()
 
     private val imagePicker = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let { handleImageSelected(it) }
@@ -66,6 +63,7 @@ class ProfileFragment : Fragment(), AddHabitDialogFragment.OnHabitCreatedListene
         tokenManager = TokenManager(requireContext())
         setupRecycler()
         setupButtons()
+        setupObservers()
         fetchProfile()
         return binding.root
     }
@@ -80,55 +78,88 @@ class ProfileFragment : Fragment(), AddHabitDialogFragment.OnHabitCreatedListene
         binding.buttonAddHabit.setOnClickListener { openAddHabitDialog() }
     }
 
-    private fun fetchProfile() {
-        val bearer = tokenManager.getBearerToken()
-        if (bearer == null) {
-            navigateToLogin(); return
+    private fun setupObservers() {
+        viewModel.profile.observe(viewLifecycleOwner) { result ->
+            when (result) {
+                is Result.Loading -> {
+                    showLoading(true)
+                }
+                is Result.Success -> {
+                    Log.d(TAG, "Profile raw: ${Gson().toJson(result.data)}")
+                    currentProfile = result.data
+                    bindProfile(result.data)
+                    viewModel.loadHabitsByUser(result.data.id)
+                }
+                is Result.Error -> {
+                    Log.e(TAG, "Profile fetch failed: ${result.message}")
+                    showError(result.message)
+                }
+            }
         }
-        showLoading(true)
-        RetrofitClient.instance.getMyProfile(bearer)
-            .enqueue(object : Callback<ProfileResponse> {
-                override fun onResponse(call: Call<ProfileResponse>, response: Response<ProfileResponse>) {
-                    if (response.isSuccessful) {
-                        val profile = response.body()
-                        Log.d(TAG, "Profile raw: ${Gson().toJson(profile)}")
-                        if (profile != null) {
-                            currentProfile = profile
-                            bindProfile(profile)
-                            fetchHabits(profile.id)
-                        } else showError(getString(R.string.profile_fetch_failed))
-                    } else {
-                        Log.e(TAG, "Profile fetch failed code=${response.code()} body=${response.errorBody()?.string()}")
-                        showError(getString(R.string.profile_fetch_failed))
-                    }
-                }
-                override fun onFailure(call: Call<ProfileResponse>, t: Throwable) {
-                    Log.e(TAG, "Profile fetch network failure: ${t.message}", t)
-                    showError(t.message ?: getString(R.string.profile_fetch_failed))
-                }
-            })
-    }
 
-    private fun fetchHabits(userId: Int) {
-        val bearer = tokenManager.getBearerToken() ?: return
-        RetrofitClient.instance.getHabitsByUser(bearer, userId)
-            .enqueue(object : Callback<List<HabitResponse>> {
-                override fun onResponse(call: Call<List<HabitResponse>>, response: Response<List<HabitResponse>>) {
+        viewModel.habits.observe(viewLifecycleOwner) { result ->
+            when (result) {
+                is Result.Loading -> {
+                    // Already showing loading
+                }
+                is Result.Success -> {
                     showLoading(false)
-                    if (response.isSuccessful) {
-                        val list = response.body().orEmpty()
-                        habitsAdapter.submit(list)
-                        binding.textHabitsEmpty.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
-                        if (list.isNotEmpty()) computeHabitProgressFromAllSchedules(list as MutableList<HabitResponse>)
-                    } else {
-                        Toast.makeText(requireContext(), getString(R.string.profile_habits_failed), Toast.LENGTH_SHORT).show()
+                    habitsAdapter.submit(result.data)
+                    binding.textHabitsEmpty.visibility = if (result.data.isEmpty()) View.VISIBLE else View.GONE
+                    if (result.data.isNotEmpty()) {
+                        viewModel.loadAllSchedules()
                     }
                 }
-                override fun onFailure(call: Call<List<HabitResponse>>, t: Throwable) {
+                is Result.Error -> {
                     showLoading(false)
                     Toast.makeText(requireContext(), getString(R.string.profile_habits_failed), Toast.LENGTH_SHORT).show()
                 }
-            })
+            }
+        }
+
+        viewModel.allSchedules.observe(viewLifecycleOwner) { result ->
+            when (result) {
+                is Result.Success -> {
+                    val habits = (viewModel.habits.value as? Result.Success)?.data ?: return@observe
+                    computeHabitProgressFromSchedules(habits, result.data)
+                    showLoading(false)
+                }
+                is Result.Error -> {
+                    Log.e(TAG, "getAllSchedules failed: ${result.message}")
+                    showLoading(false)
+                }
+                is Result.Loading -> {
+                    // Already showing loading
+                }
+            }
+        }
+
+        viewModel.updateResult.observe(viewLifecycleOwner) { result ->
+            when (result) {
+                is Result.Loading -> {
+                    showLoading(true)
+                }
+                is Result.Success -> {
+                    showLoading(false)
+                    currentProfile = result.data
+                    bindProfile(result.data)
+                    Toast.makeText(requireContext(), getString(R.string.profile_updated), Toast.LENGTH_SHORT).show()
+                }
+                is Result.Error -> {
+                    showLoading(false)
+                    Toast.makeText(requireContext(), "Update failed: ${result.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    private fun fetchProfile() {
+        val token = tokenManager.getAccessToken()
+        if (token.isNullOrBlank()) {
+            navigateToLogin()
+            return
+        }
+        viewModel.loadProfile()
     }
 
     private fun bindProfile(profile: ProfileResponse) {
@@ -218,55 +249,8 @@ class ProfileFragment : Fragment(), AddHabitDialogFragment.OnHabitCreatedListene
     }
 
     private fun submitProfileUpdate(username: String?, description: String?) {
-        val bearer = tokenManager.getBearerToken() ?: return
         val body = UpdateProfileRequest(username = username, description = description)
-        showLoading(true)
-        RetrofitClient.instance.updateMyProfile(bearer, body)
-            .enqueue(object : Callback<ProfileResponse> {
-                override fun onResponse(call: Call<ProfileResponse>, response: Response<ProfileResponse>) {
-                    showLoading(false)
-                    if (response.isSuccessful) {
-                        val updated = response.body()
-                        if (updated != null) {
-                            currentProfile = updated
-                            bindProfile(updated)
-                            Toast.makeText(requireContext(), getString(R.string.profile_updated), Toast.LENGTH_SHORT).show()
-                        }
-                    } else {
-                        Toast.makeText(requireContext(), getString(R.string.profile_update_failed), Toast.LENGTH_SHORT).show()
-                    }
-                }
-                override fun onFailure(call: Call<ProfileResponse>, t: Throwable) {
-                    showLoading(false)
-                    Toast.makeText(requireContext(), getString(R.string.profile_update_failed), Toast.LENGTH_SHORT).show()
-                }
-            })
-    }
-
-    private fun confirmLogout() {
-        MaterialAlertDialogBuilder(requireContext())
-            .setTitle(getString(R.string.profile_logout_confirm_title))
-            .setMessage(getString(R.string.profile_logout_confirm_message))
-            .setPositiveButton(getString(R.string.profile_logout_yes)) { d, _ ->
-                d.dismiss(); performLogout()
-            }
-            .setNegativeButton(getString(R.string.profile_logout_no)) { d, _ -> d.dismiss() }
-            .show()
-    }
-
-    private fun performLogout() {
-        val bearer = tokenManager.getBearerToken()
-        tokenManager.clearTokens()
-        if (bearer == null) { navigateToLogin(); return }
-        RetrofitClient.instance.logout(bearer)
-            .enqueue(object : Callback<Void> {
-                override fun onResponse(call: Call<Void>, response: Response<Void>) {
-                    navigateToLogin()
-                }
-                override fun onFailure(call: Call<Void>, t: Throwable) {
-                    navigateToLogin()
-                }
-            })
+        viewModel.updateProfile(body)
     }
 
     private fun navigateToLogin() {
@@ -286,113 +270,80 @@ class ProfileFragment : Fragment(), AddHabitDialogFragment.OnHabitCreatedListene
     }
 
     // === Per-habit progress aggregation using all schedules up to today ===
-    private fun computeHabitProgressFromAllSchedules(habits: List<HabitResponse>) {
-        val bearer = tokenManager.getBearerToken() ?: return
+    private fun computeHabitProgressFromSchedules(habits: List<HabitResponse>, schedules: List<com.example.progfront.data.model.ScheduleResponse>) {
         if (!isAdded) return
-        showLoading(true)
 
         val habitIds = habits.map { it.id }.toSet()
         val totals = mutableMapOf<Int, Int>()
         val completed = mutableMapOf<Int, Int>()
 
         val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-        val today = Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }.time
+        val today = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.time
 
-        RetrofitClient.instance.getAllSchedules(bearer)
-            .enqueue(object : Callback<List<ScheduleResponse>> {
-                override fun onResponse(
-                    call: Call<List<ScheduleResponse>>,
-                    response: Response<List<ScheduleResponse>>
-                ) {
-                    if (response.isSuccessful) {
-                        val schedules = response.body().orEmpty()
-                        Log.d(TAG, "computeHabitProgress: fetched ${schedules.size} schedules total")
-                        for (sch in schedules) {
-                            val hid = sch?.habit?.id ?: sch.habitId ?: continue
-                            val status = sch.status
-                            val dateStr = sch.date
-                            if (!habitIds.contains(hid)) {
-                                Log.d(TAG, "skip schedule id=${sch.id} habitId=$hid not in user's habits")
-                                //continue
-                            }
-                            val dateOk = try {
-                                val d = sdf.parse(dateStr)
-                                d != null && !d.after(today)
-                            } catch (e: Exception) {
-                                Log.w(TAG, "Failed to parse schedule date='$dateStr': ${e.message}")
-                                false
-                            }
-                            if (!dateOk) {
-                                Log.d(TAG, "skip schedule id=${sch.id} habitId=$hid date=$dateStr in future")
-                                continue
-                            }
-                            totals[hid] = (totals[hid] ?: 0) + 1
-                            val isDone = status.equals("Completed", ignoreCase = true)
-                            if (isDone) completed[hid] = (completed[hid] ?: 0) + 1
-                            Log.d(
-                                TAG,
-                                "count schedule id=${sch.id} habitId=$hid date=$dateStr status=$status -> total=${totals[hid]} completed=${completed[hid] ?: 0}"
-                            )
-                        }
-                        // Log per-habit totals
-                        Log.d(TAG, "Habit IDS: $habitIds")
-                        for (hid in habitIds) {
-                            Log.d(TAG, "habitId=$hid totals=${totals[hid] ?: 0} completed=${completed[hid] ?: 0}")
-                        }
-                        val percents = habitIds.associateWith { hid ->
-                            val t = totals[hid] ?: 0
-                            val c = completed[hid] ?: 0
-                            val p = if (t > 0) (c * 100 / t) else 0
-                            Log.d(TAG, "habitId=$hid percent=$p (c=$c/t=$t)")
-                            p
-                        }
-                        if (isAdded) {
-                            habitsAdapter.updateProgress(percents)
-                            showLoading(false)
-                        }
-                    } else {
-                        Log.e(TAG, "getAllSchedules failed code=${response.code()} body=${response.errorBody()?.string()}")
-                        showLoading(false)
-                    }
-                }
-                override fun onFailure(call: Call<List<ScheduleResponse>>, t: Throwable) {
-                    Log.e(TAG, "getAllSchedules network failure: ${t.message}", t)
-                    showLoading(false)
-                }
-            })
+        Log.d(TAG, "computeHabitProgress: processing ${schedules.size} schedules total")
+
+        for (sch in schedules) {
+            val hid = sch?.habit?.id ?: sch.habitId ?: continue
+            val status = sch.status
+            val dateStr = sch.date
+
+            if (!habitIds.contains(hid)) {
+                Log.d(TAG, "skip schedule id=${sch.id} habitId=$hid not in user's habits")
+                continue
+            }
+
+            val dateOk = try {
+                val d = sdf.parse(dateStr)
+                d != null && !d.after(today)
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to parse schedule date='$dateStr': ${e.message}")
+                false
+            }
+
+            if (!dateOk) {
+                Log.d(TAG, "skip schedule id=${sch.id} habitId=$hid date=$dateStr in future")
+                continue
+            }
+
+            totals[hid] = (totals[hid] ?: 0) + 1
+            val isDone = status.equals("Completed", ignoreCase = true)
+            if (isDone) completed[hid] = (completed[hid] ?: 0) + 1
+
+            Log.d(TAG, "count schedule id=${sch.id} habitId=$hid date=$dateStr status=$status -> total=${totals[hid]} completed=${completed[hid] ?: 0}")
+        }
+
+        // Log per-habit totals
+        Log.d(TAG, "Habit IDS: $habitIds")
+        for (hid in habitIds) {
+            Log.d(TAG, "habitId=$hid totals=${totals[hid] ?: 0} completed=${completed[hid] ?: 0}")
+        }
+
+        val percents = habitIds.associateWith { hid ->
+            val t = totals[hid] ?: 0
+            val c = completed[hid] ?: 0
+            val p = if (t > 0) (c * 100 / t) else 0
+            Log.d(TAG, "habitId=$hid percent=$p (c=$c/t=$t)")
+            p
+        }
+
+        if (isAdded) {
+            habitsAdapter.updateProgress(percents)
+        }
     }
 
     private fun handleImageSelected(uri: Uri) {
-        val bearer = tokenManager.getBearerToken() ?: return
         val file = copyUriToTempFile(uri) ?: run {
-            Toast.makeText(requireContext(), getString(R.string.profile_image_upload_failed), Toast.LENGTH_SHORT).show(); return
+            Toast.makeText(requireContext(), getString(R.string.profile_image_upload_failed), Toast.LENGTH_SHORT).show()
+            return
         }
         val reqBody = file.asRequestBody("image/*".toMediaTypeOrNull())
         val part = MultipartBody.Part.createFormData("profileImage", file.name, reqBody)
-        showLoading(true)
-        RetrofitClient.instance.uploadProfileImage(bearer, part)
-            .enqueue(object : Callback<ProfileResponse> {
-                override fun onResponse(call: Call<ProfileResponse>, response: Response<ProfileResponse>) {
-                    showLoading(false)
-                    if (response.isSuccessful) {
-                        val updated = response.body()
-                        Log.d(TAG, "Upload response: ${Gson().toJson(updated)}")
-                        if (updated != null) {
-                            currentProfile = updated
-                            bindProfile(updated)
-                            Toast.makeText(requireContext(), getString(R.string.profile_image_upload_success), Toast.LENGTH_SHORT).show()
-                        }
-                    } else {
-                        Log.e(TAG, "Image upload failed code=${response.code()} body=${response.errorBody()?.string()}")
-                        Toast.makeText(requireContext(), getString(R.string.profile_image_upload_failed), Toast.LENGTH_SHORT).show()
-                    }
-                }
-                override fun onFailure(call: Call<ProfileResponse>, t: Throwable) {
-                    showLoading(false)
-                    Log.e(TAG, "Image upload network failure: ${t.message}", t)
-                    Toast.makeText(requireContext(), getString(R.string.profile_image_upload_failed), Toast.LENGTH_SHORT).show()
-                }
-            })
+        viewModel.uploadProfileImage(part)
     }
 
     private fun copyUriToTempFile(uri: Uri): File? {
@@ -423,6 +374,6 @@ class ProfileFragment : Fragment(), AddHabitDialogFragment.OnHabitCreatedListene
 
     override fun onHabitCreated(habit: HabitResponse) {
         // After a new habit is created, refresh the habits list (and progress)
-        currentProfile?.id?.let { fetchHabits(it) }
+        currentProfile?.id?.let { viewModel.loadHabitsByUser(it) }
     }
 }

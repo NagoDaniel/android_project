@@ -16,7 +16,7 @@ import com.example.progfront.data.model.ProgressCreateRequest
 import com.example.progfront.data.model.ProfileResponse
 import com.example.progfront.data.model.UpdateProfileRequest
 import okhttp3.MultipartBody
-import retrofit2.Call
+import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
@@ -31,103 +31,83 @@ import retrofit2.http.Query
 interface ApiService {
     // Auth
     @POST("/auth/local/signup")
-    fun registerUser(@Body userData: RegisterRequest): Call<RegisterResponse>
+    suspend fun registerUser(@Body userData: RegisterRequest): Response<RegisterResponse>
 
     @POST("/auth/local/signin")
-    fun loginUser(@Body userData: LoginRequest): Call<RegisterResponse>
+    suspend fun loginUser(@Body userData: LoginRequest): Response<RegisterResponse>
 
     // Token refresh returns plain Tokens object per spec
     @POST("/auth/local/refresh")
-    fun refreshTokens(@Header("refreshtoken") refreshToken: String): Call<Tokens>
+    suspend fun refreshTokens(@Header("refreshtoken") refreshToken: String): Response<Tokens>
 
     // Habits
     @GET("/habit")
-    fun getHabits(@Header("Authorization") token: String): Call<List<HabitResponse>>
+    suspend fun getHabits(): Response<List<HabitResponse>>
 
     @POST("/habit")
-    fun createHabit(@Header("Authorization") token: String, @Body habitData: HabitRequest): Call<HabitResponse>
+    suspend fun createHabit(@Body habitData: HabitRequest): Response<HabitResponse>
 
     @GET("/habit/categories")
-    fun getHabitCategories(@Header("Authorization") token: String): Call<List<HabitCategoryResponse>>
+    suspend fun getHabitCategories(): Response<List<HabitCategoryResponse>>
 
     // Schedules (creation)
     @POST("/schedule/custom")
-    fun createCustomSchedule(@Header("Authorization") token: String, @Body scheduleData: CustomScheduleRequest): Call<ScheduleResponse>
+    suspend fun createCustomSchedule(@Body scheduleData: CustomScheduleRequest): Response<ScheduleResponse>
 
     @POST("/schedule/recurring")
-    fun createRecurringSchedule(@Header("Authorization") token: String, @Body scheduleData: RecurringScheduleRequest): Call<List<ScheduleResponse>>
+    suspend fun createRecurringSchedule(@Body scheduleData: RecurringScheduleRequest): Response<List<ScheduleResponse>>
 
     @POST("/schedule/recurring/weekdays")
-    fun createWeekdaySchedule(@Header("Authorization") token: String, @Body scheduleData: WeekdayScheduleRequest): Call<List<ScheduleResponse>>
+    suspend fun createWeekdaySchedule(@Body scheduleData: WeekdayScheduleRequest): Response<List<ScheduleResponse>>
 
     // Schedules (query)
     @GET("/schedule")
-    fun getAllSchedules(@Header("Authorization") token: String): Call<List<ScheduleResponse>>
+    suspend fun getAllSchedules(): Response<List<ScheduleResponse>>
 
     // Schedules (query) – confirmed endpoint form /schedule?day=YYYY-MM-DD
     @GET("/schedule")
-    fun getSchedulesForDay(@Header("Authorization") token: String, @Query("date") day: String): Call<List<ScheduleResponse>>
+    suspend fun getSchedulesForDay(@Query("date") day: String): Response<List<ScheduleResponse>>
 
     // Schedules (update)
     @PATCH("/schedule/{id}")
-    fun updateScheduleStatus(
-        @Header("Authorization") token: String,
+    suspend fun updateScheduleStatus(
         @Path("id") id: Int,
         @Body statusBody: Map<String, String>
-    ): Call<ScheduleResponse>
+    ): Response<ScheduleResponse>
 
     // Schedules (delete)
     @DELETE("/schedule/{id}")
-    fun deleteSchedule(
-        @Header("Authorization") token: String,
-        @Path("id") id: Int
-    ): Call<Void>
+    suspend fun deleteSchedule(@Path("id") id: Int): Response<Void>
 
     // Schedule detail
     @GET("/schedule/{id}")
-    fun getScheduleById(
-        @Header("Authorization") token: String,
-        @Path("id") id: Int
-    ): Call<ScheduleResponse>
+    suspend fun getScheduleById(@Path("id") id: Int): Response<ScheduleResponse>
 
     // Generic schedule update (notes, times, etc.)
     @PATCH("/schedule/{id}")
-    fun updateSchedule(
-        @Header("Authorization") token: String,
+    suspend fun updateSchedule(
         @Path("id") id: Int,
         @Body body: Map<String, @JvmSuppressWildcards Any?>
-    ): Call<ScheduleResponse>
+    ): Response<ScheduleResponse>
 
     // Progress
     @POST("/progress")
-    fun createProgress(
-        @Header("Authorization") token: String,
-        @Body body: ProgressCreateRequest
-    ): Call<ProgressResponse>
+    suspend fun createProgress(@Body body: ProgressCreateRequest): Response<ProgressResponse>
 
     // Profile
     @GET("/profile")
-    fun getMyProfile(@Header("Authorization") token: String): Call<ProfileResponse>
+    suspend fun getMyProfile(): Response<ProfileResponse>
 
     @GET("/habit/user/{userId}")
-    fun getHabitsByUser(
-        @Header("Authorization") token: String,
-        @Path("userId") userId: Int
-    ): Call<List<HabitResponse>>
+    suspend fun getHabitsByUser(@Path("userId") userId: Int): Response<List<HabitResponse>>
 
     @PATCH("/profile")
-    fun updateMyProfile(
-        @Header("Authorization") token: String,
-        @Body body: UpdateProfileRequest
-    ): Call<ProfileResponse>
+    suspend fun updateMyProfile(@Body body: UpdateProfileRequest): Response<ProfileResponse>
 
     @POST("/auth/local/logout")
-    fun logout(@Header("Authorization") token: String): Call<Void>
+    suspend fun logout(): Response<Void>
 
     @Multipart
     @POST("/profile/upload-profile-image")
-    fun uploadProfileImage(
-        @Header("Authorization") token: String,
-        @Part profileImage: MultipartBody.Part
-    ): Call<ProfileResponse>
+    suspend fun uploadProfileImage(@Part profileImage: MultipartBody.Part): Response<ProfileResponse>
 }

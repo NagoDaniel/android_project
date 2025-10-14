@@ -9,15 +9,13 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.viewModels
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.example.progfront.data.Result
 import com.example.progfront.data.model.ScheduleResponse
-import com.example.progfront.data.remote.RetrofitClient
 import com.example.progfront.databinding.FragmentHomeBinding
 import com.example.progfront.ui.schedule.ScheduleDetailActivity
 import com.example.progfront.utils.TokenManager
-import retrofit2.Call
-import retrofit2.Callback
-import retrofit2.Response
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -32,6 +30,8 @@ class HomeFragment : Fragment() {
     private val calendar: Calendar = Calendar.getInstance()
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
 
+    private val viewModel: HomeViewModel by viewModels()
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -42,6 +42,7 @@ class HomeFragment : Fragment() {
         setupRecycler()
         setupDatePicker()
         setupSwipeRefresh()
+        setupObservers()
         updateTitle()
         loadSchedules()
         return binding.root
@@ -87,6 +88,44 @@ class HomeFragment : Fragment() {
         }
     }
 
+    private fun setupObservers() {
+        viewModel.schedules.observe(viewLifecycleOwner) { result ->
+            when (result) {
+                is Result.Loading -> {
+                    showLoading(true)
+                }
+                is Result.Success -> {
+                    finishLoading()
+                    val day = dateFormat.format(calendar.time)
+                    Log.d("HomeFragment", "Server returned ${result.data.size} schedules (pre-filter) for day=$day")
+                    val filtered = filterBySelectedDay(result.data, day)
+                    Log.d("HomeFragment", "Filtered to ${filtered.size} schedules for exact day=$day")
+                    applySchedules(filtered.sortedBy { it.start_time })
+                }
+                is Result.Error -> {
+                    finishLoading()
+                    Log.e("HomeFragment", "Fetch failed: ${result.message}")
+                    Toast.makeText(requireContext(), "Error: ${result.message}", Toast.LENGTH_SHORT).show()
+                    showEmpty()
+                }
+            }
+        }
+
+        viewModel.statusUpdateResult.observe(viewLifecycleOwner) { result ->
+            when (result) {
+                is Result.Success -> {
+                    loadSchedules()
+                }
+                is Result.Error -> {
+                    Toast.makeText(requireContext(), "Failed to update status", Toast.LENGTH_SHORT).show()
+                }
+                is Result.Loading -> {
+                    // Already showing loading on item
+                }
+            }
+        }
+    }
+
     private fun updateTitle() {
         val todayStr = dateFormat.format(Calendar.getInstance().time)
         val selectedStr = dateFormat.format(calendar.time)
@@ -102,34 +141,8 @@ class HomeFragment : Fragment() {
             return
         }
         val day = dateFormat.format(calendar.time)
-        Log.d("HomeFragment", "Fetching schedules via /schedule?day=$day")
-        showLoading(true)
-        RetrofitClient.instance.getSchedulesForDay("Bearer $token", day)
-            .enqueue(object : Callback<List<ScheduleResponse>> {
-                override fun onResponse(
-                    call: Call<List<ScheduleResponse>>,
-                    response: Response<List<ScheduleResponse>>
-                ) {
-                    finishLoading()
-                    if (response.isSuccessful) {
-                        val rawList = response.body().orEmpty()
-                        Log.d("HomeFragment", "Server returned ${rawList.size} schedules (pre-filter) for day=$day")
-                        val filtered = filterBySelectedDay(rawList, day)
-                        Log.d("HomeFragment", "Filtered to ${filtered.size} schedules for exact day=$day")
-                        applySchedules(filtered.sortedBy { it.start_time })
-                    } else {
-                        Log.e("HomeFragment", "Fetch failed code=${response.code()} body=${response.errorBody()?.string()}")
-                        showEmpty()
-                    }
-                }
-
-                override fun onFailure(call: Call<List<ScheduleResponse>>, t: Throwable) {
-                    finishLoading()
-                    Log.e("HomeFragment", "Network error: ${t.message}", t)
-                    Toast.makeText(requireContext(), "Network error: ${t.message}", Toast.LENGTH_SHORT).show()
-                    showEmpty()
-                }
-            })
+        Log.d("HomeFragment", "Fetching schedules for day=$day")
+        viewModel.loadSchedulesForDay(day)
     }
 
     private fun filterBySelectedDay(list: List<ScheduleResponse>, targetDay: String): List<ScheduleResponse> {
@@ -145,30 +158,11 @@ class HomeFragment : Fragment() {
     }
 
     private fun toggleStatus(schedule: ScheduleResponse) {
-        val token = tokenManager.getAccessToken() ?: return
         val sequence = listOf("Planned", "Completed", "Skipped")
         val idx = sequence.indexOfFirst { it.equals(schedule.status, ignoreCase = true) }.let { if (it == -1) 0 else it }
         val next = sequence[(idx + 1) % sequence.size]
         adapter.markUpdating(schedule.id, true)
-        RetrofitClient.instance.updateScheduleStatus(
-            "Bearer $token",
-            schedule.id,
-            mapOf("status" to next)
-        ).enqueue(object : Callback<ScheduleResponse> {
-            override fun onResponse(call: Call<ScheduleResponse>, response: Response<ScheduleResponse>) {
-                adapter.markUpdating(schedule.id, false)
-                if (response.isSuccessful) {
-                    loadSchedules()
-                } else {
-                    Toast.makeText(requireContext(), "Failed to update status", Toast.LENGTH_SHORT).show()
-                }
-            }
-
-            override fun onFailure(call: Call<ScheduleResponse>, t: Throwable) {
-                adapter.markUpdating(schedule.id, false)
-                Toast.makeText(requireContext(), "Status update error: ${t.message}", Toast.LENGTH_SHORT).show()
-            }
-        })
+        viewModel.toggleScheduleStatus(schedule.id, next)
     }
 
     private fun applySchedules(list: List<ScheduleResponse>) {

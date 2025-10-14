@@ -6,28 +6,28 @@ import android.view.Menu
 import android.view.MenuItem
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavController
 import androidx.navigation.findNavController
 import androidx.navigation.ui.AppBarConfiguration
 import androidx.navigation.ui.setupActionBarWithNavController
 import androidx.navigation.ui.setupWithNavController
 import com.example.progfront.R
+import com.example.progfront.data.repository.AuthRepository
 import com.example.progfront.databinding.ActivityMainBinding
 import com.example.progfront.ui.auth.login.LoginActivity
 import com.example.progfront.ui.schedule.CreateScheduleActivity
 import com.example.progfront.utils.TokenManager
-import com.example.progfront.data.remote.RetrofitClient
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import retrofit2.Call
-import retrofit2.Callback
-import retrofit2.Response
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var tokenManager: TokenManager
     private var isProfileDestination: Boolean = false
+    private val authRepository = AuthRepository()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -95,24 +95,18 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun performLogout() {
-        val bearer = tokenManager.getBearerToken()
         tokenManager.clearTokens()
-        if (bearer == null) { navigateToLogin(); return }
-        RetrofitClient.instance.logout(bearer)
-            .enqueue(object : Callback<Void> {
-                override fun onResponse(call: Call<Void>, response: Response<Void>) {
-                    navigateToLogin()
-                }
-                override fun onFailure(call: Call<Void>, t: Throwable) {
-                    navigateToLogin()
-                }
-            })
+
+        lifecycleScope.launch {
+            authRepository.logout()
+            // Navigate to login regardless of API result since tokens are already cleared
+            navigateToLogin()
+        }
     }
 
     private fun navigateToLogin() {
         Toast.makeText(this, getString(R.string.profile_logout), Toast.LENGTH_SHORT).show()
         val intent = Intent(this, LoginActivity::class.java)
-        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         startActivity(intent)
     }
 }

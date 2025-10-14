@@ -36,7 +36,6 @@ android {
         freeCompilerArgs = freeCompilerArgs + listOf("-Xuse-k2=false")
     }
     buildFeatures {
-        // dataBinding disabled to avoid internal FIR crash
         viewBinding = true
     }
 }

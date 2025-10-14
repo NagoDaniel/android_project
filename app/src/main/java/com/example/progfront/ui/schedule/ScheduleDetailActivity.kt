@@ -4,17 +4,15 @@ import android.os.Bundle
 import android.view.View
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.progfront.R
+import com.example.progfront.data.Result
 import com.example.progfront.data.model.ProgressResponse
 import com.example.progfront.data.model.ScheduleResponse
-import com.example.progfront.data.remote.RetrofitClient
 import com.example.progfront.utils.TokenManager
-import retrofit2.Call
-import retrofit2.Callback
-import retrofit2.Response
 import java.text.ParseException
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -41,8 +39,6 @@ import com.example.progfront.databinding.ActivityScheduleDetailBinding
 class ScheduleDetailActivity : AppCompatActivity() {
 
     private lateinit var tokenManager: TokenManager
-
-    // View Binding
     private lateinit var binding: ActivityScheduleDetailBinding
 
     private lateinit var textHabitName: TextView
@@ -59,12 +55,13 @@ class ScheduleDetailActivity : AppCompatActivity() {
     private lateinit var textError: TextView
     private lateinit var fabAdd: FloatingActionButton
 
-    // Inline notes editing views
     private lateinit var inputNotesLayout: TextInputLayout
     private lateinit var inputNotesEdit: TextInputEditText
     private lateinit var buttonEditNotes: MaterialButton
     private lateinit var buttonSaveNotes: MaterialButton
     private lateinit var buttonCancelNotes: MaterialButton
+
+    private val viewModel: ScheduleDetailViewModel by viewModels()
 
     private val timePatterns = listOf(
         "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
@@ -81,11 +78,11 @@ class ScheduleDetailActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Inflate binding and set content view
         binding = ActivityScheduleDetailBinding.inflate(layoutInflater)
         setContentView(binding.root)
         tokenManager = TokenManager(this)
         bindViews()
+        setupObservers()
         scheduleId = intent.getIntExtra("schedule_id", -1)
         if (scheduleId == -1) {
             Toast.makeText(this, "Invalid schedule", Toast.LENGTH_SHORT).show()
@@ -115,9 +112,7 @@ class ScheduleDetailActivity : AppCompatActivity() {
         }
     }
 
-    // no view binding initially, just replaced this
     private fun bindViews() {
-        // Map all referenced views from binding
         textHabitName = binding.textHabitName
         textHabitDescription = binding.textHabitDescription
         textScheduleTime = binding.textScheduleTime
@@ -161,38 +156,86 @@ class ScheduleDetailActivity : AppCompatActivity() {
         val token = tokenManager.getAccessToken()
         if (token.isNullOrBlank()) {
             Toast.makeText(this, "Not authenticated", Toast.LENGTH_SHORT).show()
-            finish(); return
+            finish()
+            return
         }
-        showLoading(true)
-        RetrofitClient.instance.getScheduleById("Bearer $token", id)
-            .enqueue(object : Callback<ScheduleResponse> {
-                override fun onResponse(call: Call<ScheduleResponse>, response: Response<ScheduleResponse>) {
+        viewModel.loadScheduleById(id)
+    }
+
+    private fun setupObservers() {
+        viewModel.scheduleDetail.observe(this) { result ->
+            when (result) {
+                is Result.Loading -> {
+                    showLoading(true)
+                }
+                is Result.Success -> {
                     showLoading(false)
-                    if (response.isSuccessful) {
-                        val body = response.body()
-                        Log.d(TAG, "GET /schedule/$id success code=${response.code()}")
-                        if (body != null) {
-                            Log.d(TAG, "Schedule raw JSON: ${Gson().toJson(body)}")
-                            Log.d(TAG, "Progress entries count=${body.progress?.size ?: 0}")
-                            body.progress?.forEachIndexed { idx, p ->
-                                Log.d(TAG, "progress[$idx]: date=${p.date} completed=${p.is_completed} logged_time=${p.logged_time} notes=${p.notes}")
-                            }
-                            populate(body)
-                        } else {
-                            Log.e(TAG, "Schedule body null")
-                            showError()
-                        }
-                    } else {
-                        Log.e(TAG, "GET /schedule/$id failed code=${response.code()} body=${response.errorBody()?.string()}")
-                        showError()
+                    Log.d(TAG, "Schedule loaded successfully")
+                    Log.d(TAG, "Schedule raw JSON: ${Gson().toJson(result.data)}")
+                    Log.d(TAG, "Progress entries count=${result.data.progress?.size ?: 0}")
+                    result.data.progress?.forEachIndexed { idx, p ->
+                        Log.d(TAG, "progress[$idx]: date=${p.date} completed=${p.is_completed} logged_time=${p.logged_time} notes=${p.notes}")
                     }
+                    populate(result.data)
                 }
-                override fun onFailure(call: Call<ScheduleResponse>, t: Throwable) {
+                is Result.Error -> {
                     showLoading(false)
-                    Log.e(TAG, "GET /schedule/$id network failure: ${t.message}", t)
-                    showError(t.message)
+                    Log.e(TAG, "Failed to load schedule: ${result.message}")
+                    showError(result.message)
                 }
-            })
+            }
+        }
+
+        viewModel.updateResult.observe(this) { result ->
+            when (result) {
+                is Result.Loading -> {
+                    showLoading(true)
+                }
+                is Result.Success -> {
+                    showLoading(false)
+                    Toast.makeText(this, R.string.schedule_edit_success, Toast.LENGTH_SHORT).show()
+                    fetchSchedule(scheduleId)
+                }
+                is Result.Error -> {
+                    showLoading(false)
+                    Toast.makeText(this, R.string.schedule_edit_failed, Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        viewModel.deleteResult.observe(this) { result ->
+            when (result) {
+                is Result.Loading -> {
+                    showLoading(true)
+                }
+                is Result.Success -> {
+                    showLoading(false)
+                    Toast.makeText(this, getString(R.string.schedule_deleted), Toast.LENGTH_SHORT).show()
+                    finish()
+                }
+                is Result.Error -> {
+                    showLoading(false)
+                    Toast.makeText(this, getString(R.string.schedule_delete_failed), Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        viewModel.progressResult.observe(this) { result ->
+            when (result) {
+                is Result.Loading -> {
+                    showLoading(true)
+                }
+                is Result.Success -> {
+                    showLoading(false)
+                    Toast.makeText(this, getString(R.string.schedule_progress_added), Toast.LENGTH_SHORT).show()
+                    fetchSchedule(scheduleId)
+                }
+                is Result.Error -> {
+                    showLoading(false)
+                    Toast.makeText(this, getString(R.string.schedule_progress_add_error), Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
     }
 
     private fun populate(schedule: ScheduleResponse) {
@@ -288,7 +331,6 @@ class ScheduleDetailActivity : AppCompatActivity() {
             return
         }
         val schedule = currentSchedule ?: return
-        // Determine date to send: prefer schedule.date else first 10 chars of start_time
         val dateStr = schedule.date.ifBlank { schedule.start_time.take(10) }
         val request = ProgressCreateRequest(
             scheduleId = schedule.id,
@@ -297,24 +339,7 @@ class ScheduleDetailActivity : AppCompatActivity() {
             notes = notes,
             is_completed = isCompleted
         )
-        showLoading(true)
-        RetrofitClient.instance.createProgress("Bearer $token", request)
-            .enqueue(object : Callback<ProgressResponse> {
-                override fun onResponse(call: Call<ProgressResponse>, response: Response<ProgressResponse>) {
-                    showLoading(false)
-                    if (response.isSuccessful) {
-                        Toast.makeText(this@ScheduleDetailActivity, getString(R.string.schedule_progress_added), Toast.LENGTH_SHORT).show()
-                        // Refresh schedule to update list & percentage
-                        fetchSchedule(schedule.id)
-                    } else {
-                        Toast.makeText(this@ScheduleDetailActivity, getString(R.string.schedule_progress_add_error), Toast.LENGTH_SHORT).show()
-                    }
-                }
-                override fun onFailure(call: Call<ProgressResponse>, t: Throwable) {
-                    showLoading(false)
-                    Toast.makeText(this@ScheduleDetailActivity, getString(R.string.schedule_progress_add_error), Toast.LENGTH_SHORT).show()
-                }
-            })
+        viewModel.createProgress(request)
     }
 
     private fun showEditScheduleDialog() {
@@ -397,26 +422,8 @@ class ScheduleDetailActivity : AppCompatActivity() {
             Toast.makeText(this, "Not authenticated", Toast.LENGTH_SHORT).show()
             return
         }
-        showLoading(true)
-        RetrofitClient.instance.updateSchedule("Bearer $token", id, body)
-            .enqueue(object : Callback<ScheduleResponse> {
-                override fun onResponse(call: Call<ScheduleResponse>, response: Response<ScheduleResponse>) {
-                    showLoading(false)
-                    if (response.isSuccessful) {
-                        Toast.makeText(this@ScheduleDetailActivity, R.string.schedule_edit_success, Toast.LENGTH_SHORT).show()
-                        fetchSchedule(id)
-                    } else {
-                        Log.e(TAG, "PATCH /schedule/$id failed code=${response.code()} body=${response.errorBody()?.string()}")
-                        Toast.makeText(this@ScheduleDetailActivity, R.string.schedule_edit_failed, Toast.LENGTH_SHORT).show()
-                    }
-                }
-
-                override fun onFailure(call: Call<ScheduleResponse>, t: Throwable) {
-                    showLoading(false)
-                    Log.e(TAG, "PATCH /schedule/$id network failure: ${t.message}", t)
-                    Toast.makeText(this@ScheduleDetailActivity, R.string.schedule_edit_failed, Toast.LENGTH_SHORT).show()
-                }
-            })
+        Log.d(TAG, "PATCH body: ${Gson().toJson(body)}")
+        viewModel.updateSchedule(id, body)
     }
 
     private fun confirmDeleteSchedule() {
@@ -434,25 +441,10 @@ class ScheduleDetailActivity : AppCompatActivity() {
     private fun deleteSchedule(id: Int) {
         val token = tokenManager.getAccessToken()
         if (token.isNullOrBlank()) {
-            Toast.makeText(this, "Not authenticated", Toast.LENGTH_SHORT).show(); return
+            Toast.makeText(this, "Not authenticated", Toast.LENGTH_SHORT).show()
+            return
         }
-        showLoading(true)
-        RetrofitClient.instance.deleteSchedule("Bearer $token", id)
-            .enqueue(object : Callback<Void> {
-                override fun onResponse(call: Call<Void>, response: Response<Void>) {
-                    showLoading(false)
-                    if (response.isSuccessful) {
-                        Toast.makeText(this@ScheduleDetailActivity, getString(R.string.schedule_deleted), Toast.LENGTH_SHORT).show()
-                        finish()
-                    } else {
-                        Toast.makeText(this@ScheduleDetailActivity, getString(R.string.schedule_delete_failed), Toast.LENGTH_SHORT).show()
-                    }
-                }
-                override fun onFailure(call: Call<Void>, t: Throwable) {
-                    showLoading(false)
-                    Toast.makeText(this@ScheduleDetailActivity, getString(R.string.schedule_delete_failed), Toast.LENGTH_SHORT).show()
-                }
-            })
+        viewModel.deleteSchedule(id)
     }
 
     private fun saveNotesInline() {
@@ -466,30 +458,13 @@ class ScheduleDetailActivity : AppCompatActivity() {
         val body = mapOf<String, Any?>(
             "notes" to newNotes.ifBlank { null }
         )
-        // Disable while saving
         buttonSaveNotes.isEnabled = false
         buttonCancelNotes.isEnabled = false
-        showLoading(true)
-        RetrofitClient.instance.updateSchedule("Bearer $token", schedule.id, body)
-            .enqueue(object : Callback<ScheduleResponse> {
-                override fun onResponse(call: Call<ScheduleResponse>, response: Response<ScheduleResponse>) {
-                    showLoading(false)
-                    buttonSaveNotes.isEnabled = true
-                    buttonCancelNotes.isEnabled = true
-                    if (response.isSuccessful) {
-                        enableNotesEditing(false)
-                        fetchSchedule(schedule.id)
-                    } else {
-                        Toast.makeText(this@ScheduleDetailActivity, getString(R.string.schedule_edit_failed), Toast.LENGTH_SHORT).show()
-                    }
-                }
-                override fun onFailure(call: Call<ScheduleResponse>, t: Throwable) {
-                    showLoading(false)
-                    buttonSaveNotes.isEnabled = true
-                    buttonCancelNotes.isEnabled = true
-                    Toast.makeText(this@ScheduleDetailActivity, getString(R.string.schedule_edit_failed), Toast.LENGTH_SHORT).show()
-                }
-            })
+        viewModel.updateSchedule(schedule.id, body)
+        // Re-enable buttons after response comes back via observer
+        buttonSaveNotes.isEnabled = true
+        buttonCancelNotes.isEnabled = true
+        enableNotesEditing(false)
     }
 }
 

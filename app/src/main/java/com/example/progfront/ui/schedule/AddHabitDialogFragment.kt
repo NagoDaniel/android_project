@@ -9,15 +9,13 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.fragment.app.DialogFragment
+import androidx.fragment.app.viewModels
+import com.example.progfront.data.Result
 import com.example.progfront.data.model.HabitCategoryResponse
 import com.example.progfront.data.model.HabitRequest
 import com.example.progfront.data.model.HabitResponse
-import com.example.progfront.data.remote.RetrofitClient
 import com.example.progfront.databinding.DialogAddHabitBinding
 import com.example.progfront.utils.TokenManager
-import retrofit2.Call
-import retrofit2.Callback
-import retrofit2.Response
 
 class AddHabitDialogFragment : DialogFragment() {
 
@@ -30,6 +28,8 @@ class AddHabitDialogFragment : DialogFragment() {
     private lateinit var tokenManager: TokenManager
     private var _binding: DialogAddHabitBinding? = null
     private val binding get() = _binding!!
+
+    private val viewModel: ScheduleViewModel by viewModels()
 
     override fun onAttach(context: Context) {
         super.onAttach(context)
@@ -54,6 +54,7 @@ class AddHabitDialogFragment : DialogFragment() {
 
         tokenManager = TokenManager(requireContext())
 
+        setupObservers()
         loadHabitCategories()
 
         binding.buttonCreateHabit.setOnClickListener {
@@ -76,6 +77,42 @@ class AddHabitDialogFragment : DialogFragment() {
         return dialog
     }
 
+    private fun setupObservers() {
+        viewModel.habitCategories.observe(viewLifecycleOwner) { result ->
+            when (result) {
+                is Result.Loading -> {
+                    // Could show loading indicator
+                }
+                is Result.Success -> {
+                    categories = result.data
+                    val adapter = CategorySpinnerAdapter(requireContext(), result.data)
+                    binding.spinnerHabitCategory.adapter = adapter
+                }
+                is Result.Error -> {
+                    Log.e("AddHabitDialog", "Failed to load categories: ${result.message}")
+                    Toast.makeText(context, "Failed to load categories", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        viewModel.createHabitResult.observe(viewLifecycleOwner) { result ->
+            when (result) {
+                is Result.Loading -> {
+                    binding.buttonCreateHabit.isEnabled = false
+                }
+                is Result.Success -> {
+                    binding.buttonCreateHabit.isEnabled = true
+                    listener?.onHabitCreated(result.data)
+                    dismiss()
+                }
+                is Result.Error -> {
+                    binding.buttonCreateHabit.isEnabled = true
+                    Toast.makeText(context, "Failed to create habit: ${result.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
     private fun loadHabitCategories() {
         val token = tokenManager.getBearerToken()
 
@@ -85,26 +122,7 @@ class AddHabitDialogFragment : DialogFragment() {
             return
         }
 
-        RetrofitClient.instance.getHabitCategories(token)
-            .enqueue(object : Callback<List<HabitCategoryResponse>> {
-                override fun onResponse(call: Call<List<HabitCategoryResponse>>, response: Response<List<HabitCategoryResponse>>) {
-                    if (response.isSuccessful) {
-                        response.body()?.let { categoryList ->
-                            categories = categoryList
-                            val adapter = CategorySpinnerAdapter(requireContext(), categoryList)
-                            binding.spinnerHabitCategory.adapter = adapter
-                        }
-                    } else {
-                        Log.e("AddHabitDialog", "Failed to load categories: ${response.errorBody()?.string()}")
-                        Toast.makeText(context, "Failed to load categories", Toast.LENGTH_SHORT).show()
-                    }
-                }
-
-                override fun onFailure(call: Call<List<HabitCategoryResponse>>, t: Throwable) {
-                    Log.e("AddHabitDialog", "Network error loading categories: ${t.message}", t)
-                    Toast.makeText(context, "Network error: ${t.message}", Toast.LENGTH_SHORT).show()
-                }
-            })
+        viewModel.loadHabitCategories()
     }
 
     private fun createHabit() {
@@ -137,22 +155,6 @@ class AddHabitDialogFragment : DialogFragment() {
             categoryId = selectedCategory.id
         )
 
-        RetrofitClient.instance.createHabit(token, habitRequest)
-            .enqueue(object : Callback<HabitResponse> {
-                override fun onResponse(call: Call<HabitResponse>, response: Response<HabitResponse>) {
-                    if (response.isSuccessful) {
-                        response.body()?.let {
-                            listener?.onHabitCreated(it)
-                            dismiss()
-                        }
-                    } else {
-                        Toast.makeText(context, "Failed to create habit", Toast.LENGTH_SHORT).show()
-                    }
-                }
-
-                override fun onFailure(call: Call<HabitResponse>, t: Throwable) {
-                    Toast.makeText(context, "Network error: ${t.message}", Toast.LENGTH_SHORT).show()
-                }
-            })
+        viewModel.createHabit(habitRequest)
     }
 }

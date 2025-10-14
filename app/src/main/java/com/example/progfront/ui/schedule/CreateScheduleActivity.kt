@@ -6,14 +6,14 @@ import android.util.Log
 import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.Toast
+import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import com.example.progfront.data.Result
 import com.example.progfront.data.model.HabitResponse
-import com.example.progfront.data.remote.RetrofitClient
 import com.example.progfront.databinding.ActivityCreateScheduleBinding
 import com.example.progfront.utils.TokenManager
-import retrofit2.Call
-import retrofit2.Callback
-import retrofit2.Response
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -24,6 +24,8 @@ class CreateScheduleActivity : AppCompatActivity(), AddHabitDialogFragment.OnHab
     private var selectedDate: Calendar = Calendar.getInstance()
     private lateinit var tokenManager: TokenManager
 
+    private val viewModel: ScheduleViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityCreateScheduleBinding.inflate(layoutInflater)
@@ -33,6 +35,7 @@ class CreateScheduleActivity : AppCompatActivity(), AddHabitDialogFragment.OnHab
 
         setupTimeSpinners()
         setupListeners()
+        setupObservers()
         // Ensure visibility reflects the initially checked radio option
         updateRepeatUi(binding.radioGroupRepeatPattern.checkedRadioButtonId)
         loadHabits()
@@ -92,6 +95,41 @@ class CreateScheduleActivity : AppCompatActivity(), AddHabitDialogFragment.OnHab
         binding.layoutNumberOfWeeks.visibility = if (showCustom) View.VISIBLE else View.GONE
     }
 
+    private fun setupObservers() {
+        viewModel.habits.observe(this) { result ->
+            when (result) {
+                is Result.Loading -> {
+                    // Could show loading indicator
+                }
+                is Result.Success -> {
+                    habits.clear()
+                    habits.addAll(result.data)
+                    setupHabitSpinner()
+                }
+                is Result.Error -> {
+                    Toast.makeText(this, "Failed to load habits: ${result.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        viewModel.createResult.observe(this) { result ->
+            when (result) {
+                is Result.Loading -> {
+                    binding.buttonCreate.setEnabled(false)
+                }
+                is Result.Success -> {
+                    binding.buttonCreate.setEnabled(true)
+                    Toast.makeText(this, "Schedule created successfully!", Toast.LENGTH_SHORT).show()
+                    finish()
+                }
+                is Result.Error -> {
+                    binding.buttonCreate.setEnabled(true)
+                    Toast.makeText(this, "Failed to create schedule: ${result.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
     private fun loadHabits() {
         val token = tokenManager.getAccessToken()
         if (token == null) {
@@ -99,24 +137,7 @@ class CreateScheduleActivity : AppCompatActivity(), AddHabitDialogFragment.OnHab
             return
         }
 
-        RetrofitClient.instance.getHabits("Bearer $token")
-            .enqueue(object : Callback<List<HabitResponse>> {
-                override fun onResponse(call: Call<List<HabitResponse>>, response: Response<List<HabitResponse>>) {
-                    if (response.isSuccessful) {
-                        response.body()?.let {
-                            habits.clear()
-                            habits.addAll(it)
-                            setupHabitSpinner()
-                        }
-                    } else {
-                        Toast.makeText(this@CreateScheduleActivity, "Failed to load habits", Toast.LENGTH_SHORT).show()
-                    }
-                }
-
-                override fun onFailure(call: Call<List<HabitResponse>>, t: Throwable) {
-                    Toast.makeText(this@CreateScheduleActivity, "Network error: ${t.message}", Toast.LENGTH_SHORT).show()
-                }
-            })
+        viewModel.loadHabits()
     }
 
     private fun setupHabitSpinner() {
@@ -191,32 +212,32 @@ class CreateScheduleActivity : AppCompatActivity(), AddHabitDialogFragment.OnHab
         when (binding.radioGroupRepeatPattern.checkedRadioButtonId) {
             binding.radioButtonNone.id -> {
                 // One-time schedule
-                createCustomSchedule(selectedHabit.id, selectedDateStr, startTime, endTime, duration, notes, token)
+                createCustomSchedule(selectedHabit.id, selectedDateStr, startTime, endTime, duration, notes)
             }
             binding.radioButtonDaily.id -> {
                 // Daily recurring schedule
-                createRecurringSchedule(selectedHabit.id, startTime, "daily", endTime, duration, notes, token)
+                createRecurringSchedule(selectedHabit.id, startTime, "daily", endTime, duration, notes)
             }
             binding.radioButtonWeekdays.id -> {
                 // Weekdays recurring schedule
-                createRecurringSchedule(selectedHabit.id, startTime, "weekdays", endTime, duration, notes, token)
+                createRecurringSchedule(selectedHabit.id, startTime, "weekdays", endTime, duration, notes)
             }
             binding.radioButtonWeekends.id -> {
                 // Weekends recurring schedule
-                createRecurringSchedule(selectedHabit.id, startTime, "weekends", endTime, duration, notes, token)
+                createRecurringSchedule(selectedHabit.id, startTime, "weekends", endTime, duration, notes)
             }
             binding.radioButtonCustomDays.id -> {
                 // Custom days schedule
-                createWeekdaySchedule(selectedHabit.id, startTime, endTime, duration, notes, token)
+                createWeekdaySchedule(selectedHabit.id, startTime, endTime, duration, notes)
             }
             else -> {
                 // Default to one-time schedule
-                createCustomSchedule(selectedHabit.id, selectedDateStr, startTime, endTime, duration, notes, token)
+                createCustomSchedule(selectedHabit.id, selectedDateStr, startTime, endTime, duration, notes)
             }
         }
     }
 
-    private fun createCustomSchedule(habitId: Int, date: String, startTime: String, endTime: String?, duration: Int?, notes: String, token: String) {
+    private fun createCustomSchedule(habitId: Int, date: String, startTime: String, endTime: String?, duration: Int?, notes: String) {
         // Basic validation: if endTime provided and earlier than startTime, ignore it
         val safeEndTime = if (endTime != null && endTime < startTime) {
             Log.w("CreateSchedule", "End time $endTime earlier than start time $startTime. Clearing end_time.")
@@ -235,28 +256,10 @@ class CreateScheduleActivity : AppCompatActivity(), AddHabitDialogFragment.OnHab
         )
 
         Log.d("CreateSchedule", "Custom schedule request: $request")
-
-        RetrofitClient.instance.createCustomSchedule("Bearer $token", request)
-            .enqueue(object : Callback<com.example.progfront.data.model.ScheduleResponse> {
-                override fun onResponse(call: Call<com.example.progfront.data.model.ScheduleResponse>, response: Response<com.example.progfront.data.model.ScheduleResponse>) {
-                    if (response.isSuccessful) {
-                        Log.d("CreateSchedule", "Custom schedule created successfully: ${response.body()}")
-                        Toast.makeText(this@CreateScheduleActivity, "Schedule created successfully!", Toast.LENGTH_SHORT).show()
-                        finish()
-                    } else {
-                        Log.e("CreateSchedule", "Failed to create custom schedule: ${response.errorBody()?.string()}")
-                        Toast.makeText(this@CreateScheduleActivity, "Failed to create schedule", Toast.LENGTH_SHORT).show()
-                    }
-                }
-
-                override fun onFailure(call: Call<com.example.progfront.data.model.ScheduleResponse>, t: Throwable) {
-                    Log.e("CreateSchedule", "Network error creating custom schedule: ${t.message}", t)
-                    Toast.makeText(this@CreateScheduleActivity, "Network error: ${t.message}", Toast.LENGTH_SHORT).show()
-                }
-            })
+        viewModel.createCustomSchedule(request)
     }
 
-    private fun createRecurringSchedule(habitId: Int, startTime: String, pattern: String, endTime: String?, duration: Int?, notes: String, token: String) {
+    private fun createRecurringSchedule(habitId: Int, startTime: String, pattern: String, endTime: String?, duration: Int?, notes: String) {
         val request = com.example.progfront.data.model.RecurringScheduleRequest(
             habitId = habitId,
             start_time = startTime,
@@ -270,28 +273,10 @@ class CreateScheduleActivity : AppCompatActivity(), AddHabitDialogFragment.OnHab
         )
 
         Log.d("CreateSchedule", "Recurring schedule request: $request")
-
-        RetrofitClient.instance.createRecurringSchedule("Bearer $token", request)
-            .enqueue(object : Callback<List<com.example.progfront.data.model.ScheduleResponse>> {
-                override fun onResponse(call: Call<List<com.example.progfront.data.model.ScheduleResponse>>, response: Response<List<com.example.progfront.data.model.ScheduleResponse>>) {
-                    if (response.isSuccessful) {
-                        Log.d("CreateSchedule", "Recurring schedule created successfully: ${response.body()}")
-                        Toast.makeText(this@CreateScheduleActivity, "Recurring schedule created", Toast.LENGTH_SHORT).show()
-                        finish()
-                    } else {
-                        Log.e("CreateSchedule", "Failed to create recurring schedule: ${response.errorBody()?.string()}")
-                        Toast.makeText(this@CreateScheduleActivity, "Failed to create schedule", Toast.LENGTH_SHORT).show()
-                    }
-                }
-
-                override fun onFailure(call: Call<List<com.example.progfront.data.model.ScheduleResponse>>, t: Throwable) {
-                    Log.e("CreateSchedule", "Network error creating recurring schedule: ${t.message}", t)
-                    Toast.makeText(this@CreateScheduleActivity, "Network error: ${t.message}", Toast.LENGTH_SHORT).show()
-                }
-            })
+        viewModel.createRecurringSchedule(request)
     }
 
-    private fun createWeekdaySchedule(habitId: Int, startTime: String, endTime: String?, duration: Int?, notes: String, token: String) {
+    private fun createWeekdaySchedule(habitId: Int, startTime: String, endTime: String?, duration: Int?, notes: String) {
         val selectedDays = mutableListOf<Int>()
 
         if (binding.checkboxMonday.isChecked) selectedDays.add(1)
@@ -321,24 +306,6 @@ class CreateScheduleActivity : AppCompatActivity(), AddHabitDialogFragment.OnHab
         )
 
         Log.d("CreateSchedule", "Weekday schedule request: $request")
-
-        RetrofitClient.instance.createWeekdaySchedule("Bearer $token", request)
-            .enqueue(object : Callback<List<com.example.progfront.data.model.ScheduleResponse>> {
-                override fun onResponse(call: Call<List<com.example.progfront.data.model.ScheduleResponse>>, response: Response<List<com.example.progfront.data.model.ScheduleResponse>>) {
-                    if (response.isSuccessful) {
-                        Log.d("CreateSchedule", "Weekday schedule created successfully: ${response.body()}")
-                        Toast.makeText(this@CreateScheduleActivity, "Weekday schedules created", Toast.LENGTH_SHORT).show()
-                        finish()
-                    } else {
-                        Log.e("CreateSchedule", "Failed to create weekday schedule: ${response.errorBody()?.string()}")
-                        Toast.makeText(this@CreateScheduleActivity, "Failed to create schedule", Toast.LENGTH_SHORT).show()
-                    }
-                }
-
-                override fun onFailure(call: Call<List<com.example.progfront.data.model.ScheduleResponse>>, t: Throwable) {
-                    Log.e("CreateSchedule", "Network error creating weekday schedule: ${t.message}", t)
-                    Toast.makeText(this@CreateScheduleActivity, "Network error: ${t.message}", Toast.LENGTH_SHORT).show()
-                }
-            })
+        viewModel.createWeekdaySchedule(request)
     }
 }
