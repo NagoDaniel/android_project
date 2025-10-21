@@ -151,7 +151,8 @@ class ProfileFragment : Fragment(), AddHabitDialogFragment.OnHabitCreatedListene
                 }
                 is Result.Error -> {
                     showLoading(false)
-                    Toast.makeText(requireContext(), "Update failed: ${result.message}", Toast.LENGTH_SHORT).show()
+                    Log.d(TAG, "Profile update failed: ${result.message}")
+                    //Toast.makeText(requireContext(), "Update failed: ${result.message}", Toast.LENGTH_SHORT).show()
                 }
             }
         }

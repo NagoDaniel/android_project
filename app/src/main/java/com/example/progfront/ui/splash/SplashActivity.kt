@@ -10,7 +10,6 @@ import com.example.progfront.data.Result
 import com.example.progfront.data.repository.AuthRepository
 import com.example.progfront.data.repository.HabitRepository
 import com.example.progfront.databinding.ActivitySplashBinding
-import com.example.progfront.ui.auth.login.LoginActivity
 import com.example.progfront.ui.main.MainActivity
 import com.example.progfront.utils.TokenManager
 import kotlinx.coroutines.launch
@@ -45,8 +44,8 @@ class SplashActivity : AppCompatActivity() {
                 Log.d(TAG, "No refresh token; validating existing access token")
                 validateAccessToken(accessToken)
             } else {
-                Log.d(TAG, "No tokens at all – navigating to Login")
-                goToLogin()
+                Log.d(TAG, "No tokens at all – navigating to MainActivity (will show Login)")
+                goToMain()
             }
             return
         }
@@ -66,7 +65,7 @@ class SplashActivity : AppCompatActivity() {
                         validateAccessToken(accessToken)
                     } else {
                         tokenManager.clearTokens()
-                        goToLogin()
+                        goToMain()
                     }
                 }
                 is Result.Loading -> {
@@ -85,9 +84,9 @@ class SplashActivity : AppCompatActivity() {
                     goToMain()
                 }
                 is Result.Error -> {
-                    Log.e(TAG, "Access token invalid: ${result.message}; clearing & login")
+                    Log.e(TAG, "Access token invalid: ${result.message}; clearing & showing login")
                     tokenManager.clearTokens()
-                    goToLogin()
+                    goToMain()
                 }
                 is Result.Loading -> {
                     // Should not happen in this flow
@@ -100,13 +99,6 @@ class SplashActivity : AppCompatActivity() {
         if (navigated) return
         navigated = true
         startActivity(Intent(this, MainActivity::class.java))
-        finish()
-    }
-
-    private fun goToLogin() {
-        if (navigated) return
-        navigated = true
-        startActivity(Intent(this, LoginActivity::class.java))
         finish()
     }
 }

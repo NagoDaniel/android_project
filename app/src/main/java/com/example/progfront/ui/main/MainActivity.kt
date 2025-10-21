@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
+import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
@@ -39,6 +40,15 @@ class MainActivity : AppCompatActivity() {
         val navView: BottomNavigationView = binding.navView
 
         val navController = findNavController(R.id.nav_host_fragment_activity_main)
+
+        // Check if user is authenticated and set the appropriate start destination
+        val hasToken = tokenManager.getAccessToken() != null
+        val navGraph = navController.navInflater.inflate(R.navigation.mobile_navigation)
+        navGraph.setStartDestination(
+            if (hasToken) R.id.navigation_home else R.id.loginFragment
+        )
+        navController.graph = navGraph
+
         // Passing each menu ID as a set of Ids because each
         // menu should be considered as top level destinations.
         val appBarConfiguration = AppBarConfiguration(
@@ -49,16 +59,30 @@ class MainActivity : AppCompatActivity() {
         setupActionBarWithNavController(navController, appBarConfiguration)
         navView.setupWithNavController(navController)
 
-        // Hide FAB on profile
+        // Hide/show bottom nav and FAB based on destination
         navController.addOnDestinationChangedListener { _, destination, _ ->
             // Profile screen is mapped to navigation_notifications per existing setup
             isProfileDestination = destination.id == R.id.navigation_notifications
-            invalidateOptionsMenu()
-            if (isProfileDestination) {
-                binding.fab.hide()
-            } else {
-                binding.fab.show()
+
+            // Hide bottom nav and FAB on login/register screens
+            when (destination.id) {
+                R.id.loginFragment, R.id.registerFragment -> {
+                    binding.navView.visibility = View.GONE
+                    binding.fab.hide()
+                    supportActionBar?.hide()
+                }
+                else -> {
+                    binding.navView.visibility = View.VISIBLE
+                    supportActionBar?.show()
+                    if (isProfileDestination) {
+                        binding.fab.hide()
+                    } else {
+                        binding.fab.show()
+                    }
+                }
             }
+
+            invalidateOptionsMenu()
         }
 
         binding.fab.setOnClickListener {
@@ -99,14 +123,14 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             authRepository.logout()
-            // Navigate to login regardless of API result since tokens are already cleared
+            // Navigate to login using navigation component
             navigateToLogin()
         }
     }
 
     private fun navigateToLogin() {
         Toast.makeText(this, getString(R.string.profile_logout), Toast.LENGTH_SHORT).show()
-        val intent = Intent(this, LoginActivity::class.java)
-        startActivity(intent)
+        val navController = findNavController(R.id.nav_host_fragment_activity_main)
+        navController.navigate(R.id.action_profile_to_login)
     }
 }
