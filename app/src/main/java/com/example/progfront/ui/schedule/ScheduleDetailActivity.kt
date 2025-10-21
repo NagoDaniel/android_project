@@ -34,12 +34,18 @@ import android.widget.EditText
 import android.widget.CheckBox
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputLayout
+import com.example.progfront.databinding.DialogAddProgressBinding
+import androidx.appcompat.app.AlertDialog
+import android.widget.Button
 
 class ScheduleDetailActivity : AppCompatActivity() {
 
     private lateinit var tokenManager: TokenManager
     private lateinit var binding: ActivityScheduleDetailBinding
     private val viewModel: ScheduleDetailViewModel by viewModels()
+
+    // Reference to the add-progress dialog so we can dismiss / update it from observers
+    private var addProgressDialog: AlertDialog? = null
 
     private var scheduleId: Int = -1
     private var currentSchedule: ScheduleResponse? = null
@@ -174,11 +180,25 @@ class ScheduleDetailActivity : AppCompatActivity() {
                 is Result.Loading -> showLoading(true)
                 is Result.Success -> {
                     showLoading(false)
+                    // if the add-progress dialog is open, dismiss it
+                    addProgressDialog?.let { dlg ->
+                        if (dlg.isShowing) dlg.dismiss()
+                    }
+                    addProgressDialog = null
                     Toast.makeText(this, R.string.schedule_progress_added, Toast.LENGTH_SHORT).show()
                     fetchSchedule(scheduleId)
                 }
                 is Result.Error -> {
                     showLoading(false)
+                    // If dialog exists, re-enable its positive button so user can retry
+                    addProgressDialog?.let { dlg ->
+                        if (dlg.isShowing) {
+                            try {
+                                val btn = dlg.getButton(AlertDialog.BUTTON_POSITIVE)
+                                btn?.isEnabled = true
+                            } catch (_: Exception) { /* ignore */ }
+                        }
+                    }
                     Toast.makeText(this, R.string.schedule_progress_add_error, Toast.LENGTH_SHORT).show()
                 }
             }
@@ -250,23 +270,40 @@ class ScheduleDetailActivity : AppCompatActivity() {
     }
 
     private fun showAddProgressDialog() {
-        val view = layoutInflater.inflate(R.layout.dialog_add_progress, null)
-        val inputLogged = view.findViewById<EditText>(R.id.inputLoggedTime)
-        val inputNotes = view.findViewById<EditText>(R.id.inputNotes)
-        val checkCompleted = view.findViewById<CheckBox>(R.id.checkCompleted)
-        MaterialAlertDialogBuilder(this)
+        val dialogBinding = DialogAddProgressBinding.inflate(layoutInflater)
+        val dialog = MaterialAlertDialogBuilder(this)
             .setTitle(getString(R.string.schedule_add_progress))
-            .setView(view)
-            .setPositiveButton(getString(R.string.schedule_dialog_save)) { d, _ ->
-                d.dismiss()
-                submitProgress(
-                    loggedTime = inputLogged.text.toString().toIntOrNull(),
-                    notes = inputNotes.text.toString().takeIf { it.isNotBlank() },
-                    isCompleted = checkCompleted.isChecked
-                )
-            }
+            .setView(dialogBinding.root)
             .setNegativeButton(getString(R.string.schedule_dialog_cancel)) { d, _ -> d.dismiss() }
-            .show()
+            .setPositiveButton(getString(R.string.schedule_dialog_save), null)
+            .create()
+
+        // Keep a reference so observers can dismiss or re-enable the button
+        addProgressDialog = dialog
+
+        // Clear our reference whenever the dialog is dismissed or cancelled
+        dialog.setOnDismissListener { addProgressDialog = null }
+
+        dialog.setOnShowListener {
+            val btn: Button? = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+            btn?.setOnClickListener {
+                // collect values from binding
+                val loggedText = dialogBinding.inputLoggedTime.text?.toString().orEmpty()
+                val loggedTime = loggedText.toIntOrNull()
+                val notes = dialogBinding.inputNotes.text?.toString().takeIf { !it.isNullOrBlank() }
+                val isCompleted = dialogBinding.checkCompleted.isChecked
+
+
+
+                // disable button to prevent duplicate submissions; keep dialog shown until ViewModel responds
+                btn.isEnabled = false
+
+                // submit via ViewModel; the progressResult observer will dismiss or re-enable the button
+                submitProgress(loggedTime, notes, isCompleted)
+            }
+        }
+
+        dialog.show()
     }
 
     private fun submitProgress(loggedTime: Int?, notes: String?, isCompleted: Boolean) {
@@ -275,15 +312,8 @@ class ScheduleDetailActivity : AppCompatActivity() {
             Toast.makeText(this, R.string.auth_not_authenticated, Toast.LENGTH_SHORT).show(); return
         }
         val schedule = currentSchedule ?: return
-        val dateStr = schedule.date.ifBlank { schedule.start_time.take(10) }
-        val request = ProgressCreateRequest(
-            scheduleId = schedule.id,
-            date = dateStr,
-            logged_time = loggedTime,
-            notes = notes,
-            is_completed = isCompleted
-        )
-        viewModel.createProgress(request)
+        // Delegate to ViewModel which builds the request and calls repository
+        viewModel.addProgressForSchedule(schedule, loggedTime, notes, isCompleted)
     }
 
     private fun showEditScheduleDialog() {

@@ -8,7 +8,6 @@ import com.example.progfront.data.Result
 import com.example.progfront.data.model.ProgressCreateRequest
 import com.example.progfront.data.model.ProgressResponse
 import com.example.progfront.data.model.ScheduleResponse
-import com.example.progfront.data.remote.RetrofitClient
 import com.example.progfront.data.repository.ScheduleRepository
 import kotlinx.coroutines.launch
 
@@ -51,20 +50,31 @@ class ScheduleDetailViewModel : ViewModel() {
         }
     }
 
+    // Keep existing API that accepts a ready-made ProgressCreateRequest
     fun createProgress(request: ProgressCreateRequest) {
         viewModelScope.launch {
             _progressResult.value = Result.Loading
-            try {
-                val response = RetrofitClient.instance.createProgress(request)
-                if (response.isSuccessful && response.body() != null) {
-                    _progressResult.value = Result.Success(response.body()!!)
-                } else {
-                    _progressResult.value = Result.Error("Failed to create progress: ${response.message()}")
-                }
-            } catch (e: Exception) {
-                _progressResult.value = Result.Error("Network error: ${e.message}", e)
-            }
+            val result = scheduleRepository.createProgress(request)
+            _progressResult.value = result
+        }
+    }
+
+    // New helper: build the request from a ScheduleResponse and submit. Moves small business logic to ViewModel.
+    fun addProgressForSchedule(schedule: ScheduleResponse, loggedTime: Int?, notes: String?, isCompleted: Boolean) {
+        viewModelScope.launch {
+            _progressResult.value = Result.Loading
+            // brief delay to avoid rapid requests throttling the backend
+            kotlinx.coroutines.delay(50)
+            val dateStr = schedule.date.ifBlank { schedule.start_time.take(10) }
+            val request = ProgressCreateRequest(
+                scheduleId = schedule.id,
+                date = dateStr,
+                logged_time = loggedTime,
+                notes = notes,
+                is_completed = isCompleted
+            )
+            val result = scheduleRepository.createProgress(request)
+            _progressResult.value = result
         }
     }
 }
-

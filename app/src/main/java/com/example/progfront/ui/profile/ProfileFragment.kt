@@ -33,9 +33,6 @@ import java.io.FileOutputStream
 import java.io.InputStream
 import com.example.progfront.databinding.FragmentProfileBinding
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Locale
 
 class ProfileFragment : Fragment(), AddHabitDialogFragment.OnHabitCreatedListener {
 
@@ -107,6 +104,7 @@ class ProfileFragment : Fragment(), AddHabitDialogFragment.OnHabitCreatedListene
                     habitsAdapter.submit(result.data)
                     binding.textHabitsEmpty.visibility = if (result.data.isEmpty()) View.VISIBLE else View.GONE
                     if (result.data.isNotEmpty()) {
+
                         viewModel.loadAllSchedules()
                     }
                 }
@@ -117,11 +115,12 @@ class ProfileFragment : Fragment(), AddHabitDialogFragment.OnHabitCreatedListene
             }
         }
 
+        // Delegate aggregation to ViewModel: when we receive schedules, tell VM to compute per-habit percents
         viewModel.allSchedules.observe(viewLifecycleOwner) { result ->
             when (result) {
                 is Result.Success -> {
                     val habits = (viewModel.habits.value as? Result.Success)?.data ?: return@observe
-                    computeHabitProgressFromSchedules(habits, result.data)
+                    viewModel.computeProgress(habits, result.data)
                     showLoading(false)
                 }
                 is Result.Error -> {
@@ -132,6 +131,11 @@ class ProfileFragment : Fragment(), AddHabitDialogFragment.OnHabitCreatedListene
                     // Already showing loading
                 }
             }
+        }
+
+        // Observe computed percents and push them to the adapter
+        viewModel.habitPercents.observe(viewLifecycleOwner) { percents ->
+            habitsAdapter.updateProgress(percents)
         }
 
         viewModel.updateResult.observe(viewLifecycleOwner) { result ->
@@ -267,73 +271,6 @@ class ProfileFragment : Fragment(), AddHabitDialogFragment.OnHabitCreatedListene
         showLoading(false)
         binding.textErrorProfile.visibility = View.VISIBLE
         binding.textErrorProfile.text = msg
-    }
-
-    // === Per-habit progress aggregation using all schedules up to today ===
-    private fun computeHabitProgressFromSchedules(habits: List<HabitResponse>, schedules: List<com.example.progfront.data.model.ScheduleResponse>) {
-        if (!isAdded) return
-
-        val habitIds = habits.map { it.id }.toSet()
-        val totals = mutableMapOf<Int, Int>()
-        val completed = mutableMapOf<Int, Int>()
-
-        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-        val today = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }.time
-
-        Log.d(TAG, "computeHabitProgress: processing ${schedules.size} schedules total")
-
-        for (sch in schedules) {
-            val hid = sch?.habit?.id ?: sch.habitId ?: continue
-            val status = sch.status
-            val dateStr = sch.date
-
-            if (!habitIds.contains(hid)) {
-                Log.d(TAG, "skip schedule id=${sch.id} habitId=$hid not in user's habits")
-                continue
-            }
-
-            val dateOk = try {
-                val d = sdf.parse(dateStr)
-                d != null && !d.after(today)
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to parse schedule date='$dateStr': ${e.message}")
-                false
-            }
-
-            if (!dateOk) {
-                Log.d(TAG, "skip schedule id=${sch.id} habitId=$hid date=$dateStr in future")
-                continue
-            }
-
-            totals[hid] = (totals[hid] ?: 0) + 1
-            val isDone = status.equals("Completed", ignoreCase = true)
-            if (isDone) completed[hid] = (completed[hid] ?: 0) + 1
-
-            Log.d(TAG, "count schedule id=${sch.id} habitId=$hid date=$dateStr status=$status -> total=${totals[hid]} completed=${completed[hid] ?: 0}")
-        }
-
-        // Log per-habit totals
-        Log.d(TAG, "Habit IDS: $habitIds")
-        for (hid in habitIds) {
-            Log.d(TAG, "habitId=$hid totals=${totals[hid] ?: 0} completed=${completed[hid] ?: 0}")
-        }
-
-        val percents = habitIds.associateWith { hid ->
-            val t = totals[hid] ?: 0
-            val c = completed[hid] ?: 0
-            val p = if (t > 0) (c * 100 / t) else 0
-            Log.d(TAG, "habitId=$hid percent=$p (c=$c/t=$t)")
-            p
-        }
-
-        if (isAdded) {
-            habitsAdapter.updateProgress(percents)
-        }
     }
 
     private fun handleImageSelected(uri: Uri) {

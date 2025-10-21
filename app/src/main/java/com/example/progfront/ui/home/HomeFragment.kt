@@ -99,10 +99,8 @@ class HomeFragment : Fragment() {
                 is Result.Success -> {
                     finishLoading()
                     val day = dateFormat.format(calendar.time)
-                    Log.d("HomeFragment", "Server returned ${result.data.size} schedules (pre-filter) for day=$day")
-                    val filtered = filterBySelectedDay(result.data, day)
-                    Log.d("HomeFragment", "Filtered to ${filtered.size} schedules for exact day=$day")
-                    applySchedules(filtered.sortedBy { it.start_time })
+                    Log.d("HomeFragment", "Server returned ${result.data.size} schedules for day=$day")
+                    applySchedules(result.data.sortedBy { it.start_time })
                 }
                 is Result.Error -> {
                     finishLoading()
@@ -149,25 +147,11 @@ class HomeFragment : Fragment() {
         viewModel.loadSchedulesForDay(day)
     }
 
-    private fun filterBySelectedDay(list: List<ScheduleResponse>, targetDay: String): List<ScheduleResponse> {
-        if (list.isEmpty()) return list
-        return list.filter { schedule ->
-            val dateCandidates = listOfNotNull(schedule.start_time, schedule.date)
-            dateCandidates.any { candidate ->
-                // candidate may be ISO like 2025-10-01T09:00:00.000Z or 2025-10-01T00:00:00Z
-                val dayPart = candidate.take(10)
-                dayPart == targetDay
-            }
-        }
-    }
-
+    // Toggle status: UI simply forwards the schedule to ViewModel which computes next state
     private fun toggleStatus(schedule: ScheduleResponse) {
-        val sequence = listOf("Planned", "Completed", "Skipped")
-        val idx = sequence.indexOfFirst { it.equals(schedule.status, ignoreCase = true) }.let { if (it == -1) 0 else it }
-        val next = sequence[(idx + 1) % sequence.size]
         adapter.markUpdating(schedule.id, true)
         pendingStatusUpdateId = schedule.id
-        viewModel.toggleScheduleStatus(schedule.id, next)
+        viewModel.toggleScheduleStatus(schedule.id, schedule.status)
     }
 
     private fun applySchedules(list: List<ScheduleResponse>) {

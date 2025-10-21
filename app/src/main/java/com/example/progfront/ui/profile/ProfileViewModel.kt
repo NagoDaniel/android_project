@@ -13,6 +13,9 @@ import com.example.progfront.data.repository.ProfileRepository
 import com.example.progfront.data.repository.ScheduleRepository
 import kotlinx.coroutines.launch
 import okhttp3.MultipartBody
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
 
 class ProfileViewModel : ViewModel() {
     private val profileRepository = ProfileRepository()
@@ -30,6 +33,10 @@ class ProfileViewModel : ViewModel() {
 
     private val _updateResult = MutableLiveData<Result<ProfileResponse>>()
     val updateResult: LiveData<Result<ProfileResponse>> = _updateResult
+
+    // Expose per-habit percent completions for the UI to observe
+    private val _habitPercents = MutableLiveData<Map<Int, Int>>()
+    val habitPercents: LiveData<Map<Int, Int>> = _habitPercents
 
     fun loadProfile() {
         viewModelScope.launch {
@@ -69,5 +76,53 @@ class ProfileViewModel : ViewModel() {
             _updateResult.value = result
         }
     }
-}
 
+    // Compute per-habit percent completed based on schedules during the past 15 days (including today)
+
+    fun computeProgress(habitsList: List<HabitResponse>, schedules: List<com.example.progfront.data.model.ScheduleResponse>) {
+        viewModelScope.launch {
+            val habitIds = habitsList.map { it.id }.toSet()
+            val totals = mutableMapOf<Int, Int>()
+            val completed = mutableMapOf<Int, Int>()
+
+            val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+            val todayCal = Calendar.getInstance().apply {
+                set(Calendar.HOUR_OF_DAY, 0)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }
+            val today = todayCal.time
+            val cutoffCal = Calendar.getInstance().apply {
+                time = today
+                add(Calendar.DAY_OF_MONTH, -14)
+            }
+            val cutoff = cutoffCal.time
+
+            for (sch in schedules) {
+                val hid = sch?.habit?.id ?: sch.habitId ?: continue
+                if (!habitIds.contains(hid)) continue
+                val dateStr = sch.date
+                val dateOk = try {
+                    val d = sdf.parse(dateStr)
+                    d != null && !d.after(today) && !d.before(cutoff)
+                } catch (e: Exception) {
+                    false
+                }
+                if (!dateOk) continue
+                totals[hid] = (totals[hid] ?: 0) + 1
+                if (sch.status.equals("Completed", ignoreCase = true)) {
+                    completed[hid] = (completed[hid] ?: 0) + 1
+                }
+            }
+
+            val percents = habitIds.associateWith { hid ->
+                val t = totals[hid] ?: 0
+                val c = completed[hid] ?: 0
+                if (t > 0) (c * 100 / t) else 0
+            }
+
+            _habitPercents.postValue(percents)
+        }
+    }
+}

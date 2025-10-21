@@ -2,6 +2,7 @@ package com.example.progfront.data.repository
 
 import com.example.progfront.data.Result
 import com.example.progfront.data.model.CustomScheduleRequest
+import com.example.progfront.data.model.ProgressCreateRequest
 import com.example.progfront.data.model.RecurringScheduleRequest
 import com.example.progfront.data.model.ScheduleResponse
 import com.example.progfront.data.model.WeekdayScheduleRequest
@@ -145,5 +146,19 @@ class ScheduleRepository {
             }
         }
     }
-}
 
+    suspend fun createProgress(request: ProgressCreateRequest): Result<com.example.progfront.data.model.ProgressResponse> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val response = RetrofitClient.instance.createProgress(request)
+                if (response.isSuccessful && response.body() != null) {
+                    Result.Success(response.body()!!)
+                } else {
+                    Result.Error("Failed to create progress: ${response.message()}")
+                }
+            } catch (e: Exception) {
+                Result.Error("Network error: ${e.message}", e)
+            }
+        }
+    }
+}
