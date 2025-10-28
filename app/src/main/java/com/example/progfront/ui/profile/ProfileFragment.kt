@@ -230,10 +230,10 @@ class ProfileFragment : Fragment(), AddHabitDialogFragment.OnHabitCreatedListene
 
     private fun openEditProfileDialog() {
         val profile = currentProfile ?: return
-        val view = layoutInflater.inflate(R.layout.dialog_edit_profile, null)
-        val inputUsername = view.findViewById<EditText>(R.id.inputUsername)
-        val inputDescription = view.findViewById<EditText>(R.id.inputDescription)
-        val buttonChangePhoto = view.findViewById<View>(R.id.buttonChangePhotoDialog)
+        val bindingDialog = com.example.progfront.databinding.DialogEditProfileBinding.inflate(layoutInflater)
+        val inputUsername = bindingDialog.inputUsername
+        val inputDescription = bindingDialog.inputDescription
+        val buttonChangePhoto = bindingDialog.buttonChangePhotoDialog
         inputUsername.setText(profile.username ?: "")
         inputDescription.setText(profile.description ?: "")
         buttonChangePhoto.setOnClickListener {
@@ -241,7 +241,7 @@ class ProfileFragment : Fragment(), AddHabitDialogFragment.OnHabitCreatedListene
         }
         MaterialAlertDialogBuilder(requireContext())
             .setTitle(getString(R.string.profile_edit))
-            .setView(view)
+            .setView(bindingDialog.root)
             .setPositiveButton(getString(R.string.profile_save)) { d, _ ->
                 d.dismiss()
                 submitProfileUpdate(

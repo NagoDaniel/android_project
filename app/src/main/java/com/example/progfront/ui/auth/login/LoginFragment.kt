@@ -51,7 +51,6 @@ class LoginFragment : Fragment() {
                 is Result.Success -> {
                     showLoading(false)
                     Log.d("LoginFragment", "Login success: ${result.data}")
-                    tokenManager.saveTokens(result.data.tokens.accessToken, result.data.tokens.refreshToken)
                     findNavController().navigate(R.id.action_loginFragment_to_homeFragment)
                 }
                 is Result.Error -> {

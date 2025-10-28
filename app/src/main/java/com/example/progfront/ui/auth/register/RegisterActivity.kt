@@ -35,7 +35,6 @@ class RegisterActivity : AppCompatActivity() {
             if (password == confirmPassword) {
                 viewModel.register(username, email, password)
             } else {
-                // Passwords do not match, show error
                 binding.editTextPassword.error = "Passwords do not match"
                 binding.editTextPasswordConfirm.error = "Passwords do not match"
             }

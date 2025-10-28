@@ -12,13 +12,11 @@ import androidx.navigation.fragment.findNavController
 import com.example.progfront.R
 import com.example.progfront.data.Result
 import com.example.progfront.databinding.FragmentRegisterBinding
-import com.example.progfront.utils.TokenManager
 
 class RegisterFragment : Fragment() {
 
     private var _binding: FragmentRegisterBinding? = null
     private val binding get() = _binding!!
-    private lateinit var tokenManager: TokenManager
     private val viewModel: RegisterViewModel by viewModels()
 
     override fun onCreateView(
@@ -33,7 +31,6 @@ class RegisterFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        tokenManager = TokenManager(requireContext())
         setupObservers()
 
         binding.buttonRegister.setOnClickListener {
@@ -65,10 +62,6 @@ class RegisterFragment : Fragment() {
                 is Result.Success -> {
                     showLoading(false)
                     Log.d("RegisterFragment", "Registration success: ${result.data}")
-                    tokenManager.saveTokens(
-                        result.data.tokens.accessToken,
-                        result.data.tokens.refreshToken
-                    )
                     findNavController().navigate(R.id.action_registerFragment_to_homeFragment)
                 }
                 is Result.Error -> {
@@ -89,4 +82,3 @@ class RegisterFragment : Fragment() {
         _binding = null
     }
 }
-

@@ -68,7 +68,7 @@ class HomeFragment : Fragment() {
         binding.recyclerSchedules.layoutManager = LinearLayoutManager(requireContext())
         binding.recyclerSchedules.adapter = adapter
         // Hide cache banner always (cache removed) idk
-        binding.bannerCache.visibility = View.GONE
+        //binding.bannerCache.visibility = View.GONE
     }
 
     private fun setupSwipeRefresh() {
