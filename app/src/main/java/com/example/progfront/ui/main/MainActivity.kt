@@ -61,7 +61,7 @@ class MainActivity : AppCompatActivity() {
 
         // Hide/show bottom nav and FAB based on destination
         navController.addOnDestinationChangedListener { _, destination, _ ->
-            // Profile screen is mapped to navigation_notifications per existing setup
+
             isProfileDestination = destination.id == R.id.navigation_notifications
 
             // Hide bottom nav and FAB on login/register screens
@@ -70,6 +70,12 @@ class MainActivity : AppCompatActivity() {
                     binding.navView.visibility = View.GONE
                     binding.fab.hide()
                     supportActionBar?.hide()
+                }
+                R.id.createScheduleFragment, R.id.scheduleDetailFragment -> {
+                    // Full-screen content: hide bottom nav and FAB, keep action bar
+                    binding.navView.visibility = View.GONE
+                    binding.fab.hide()
+                    supportActionBar?.show()
                 }
                 else -> {
                     binding.navView.visibility = View.VISIBLE
@@ -86,8 +92,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         binding.fab.setOnClickListener {
-            val intent = Intent(this, CreateScheduleActivity::class.java)
-            startActivity(intent)
+            navController.navigate(R.id.action_global_createScheduleFragment)
         }
     }
 

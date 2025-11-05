@@ -12,6 +12,8 @@ import com.example.progfront.data.repository.HabitRepository
 import com.example.progfront.databinding.ActivitySplashBinding
 import com.example.progfront.ui.main.MainActivity
 import com.example.progfront.utils.TokenManager
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @SuppressLint("CustomSplashScreen")
@@ -35,41 +37,58 @@ class SplashActivity : AppCompatActivity() {
     }
 
     private fun attemptAutoLogin() {
-        val refreshToken = tokenManager.getRefreshToken()
-        val accessToken = tokenManager.getAccessToken()
-        Log.d(TAG, "Stored tokens => access=${accessToken?.take(10)}..., refresh=${refreshToken?.take(10)}...")
 
-        if (refreshToken.isNullOrBlank()) {
-            if (!accessToken.isNullOrBlank()) {
-                Log.d(TAG, "No refresh token; validating existing access token")
-                validateAccessToken(accessToken)
-            } else {
-                Log.d(TAG, "No tokens at all – navigating to MainActivity (will show Login)")
-                goToMain()
-            }
-            return
-        }
-
-        Log.d(TAG, "Attempting token refresh")
+        //small delay to show splash screen
         lifecycleScope.launch {
-            val result = authRepository.refreshTokens(refreshToken)
-            when (result) {
-                is Result.Success -> {
-                    Log.d(TAG, "Refresh success: new tokens received")
-                    tokenManager.saveTokens(result.data.accessToken, result.data.refreshToken)
+            // small delay to show splash screen (adjust ms as needed)
+            delay(500)
+
+            val refreshToken = tokenManager.getRefreshToken()
+            val accessToken = tokenManager.getAccessToken()
+            Log.d(
+                TAG,
+                "Stored tokens => access=${accessToken?.take(10)}..., refresh=${
+                    refreshToken?.take(10)
+                }..."
+            )
+
+            if (refreshToken.isNullOrBlank()) {
+                if (!accessToken.isNullOrBlank()) {
+                    Log.d(TAG, "No refresh token; validating existing access token")
+                    validateAccessToken(accessToken)
+                } else {
+                    Log.d(TAG, "No tokens at all – navigating to MainActivity (will show Login)")
                     goToMain()
                 }
-                is Result.Error -> {
-                    Log.e(TAG, "Refresh failed: ${result.message} – trying to validate existing access token if present")
-                    if (!accessToken.isNullOrBlank()) {
-                        validateAccessToken(accessToken)
-                    } else {
-                        tokenManager.clearTokens()
+                return@launch
+            }
+
+            Log.d(TAG, "Attempting token refresh")
+            lifecycleScope.launch {
+                val result = authRepository.refreshTokens(refreshToken)
+                when (result) {
+                    is Result.Success -> {
+                        Log.d(TAG, "Refresh success: new tokens received")
+                        tokenManager.saveTokens(result.data.accessToken, result.data.refreshToken)
                         goToMain()
                     }
-                }
-                is Result.Loading -> {
-                    // Should not happen in this flow
+
+                    is Result.Error -> {
+                        Log.e(
+                            TAG,
+                            "Refresh failed: ${result.message} – trying to validate existing access token if present"
+                        )
+                        if (!accessToken.isNullOrBlank()) {
+                            validateAccessToken(accessToken)
+                        } else {
+                            tokenManager.clearTokens()
+                            goToMain()
+                        }
+                    }
+
+                    is Result.Loading -> {
+                        // Should not happen in this flow
+                    }
                 }
             }
         }

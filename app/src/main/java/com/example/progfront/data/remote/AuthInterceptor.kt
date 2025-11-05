@@ -8,7 +8,6 @@ class AuthInterceptor(private val tokenManager: TokenManager) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val originalRequest = chain.request()
 
-        // Check if this request should have authentication
         val token = tokenManager.getAccessToken()
 
         val newRequest = if (token != null) {

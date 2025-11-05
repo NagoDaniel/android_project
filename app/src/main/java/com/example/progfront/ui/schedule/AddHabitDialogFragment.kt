@@ -33,7 +33,6 @@ class AddHabitDialogFragment : DialogFragment() {
 
     override fun onAttach(context: Context) {
         super.onAttach(context)
-        // Prefer parent fragment if it implements the listener
         listener = parentFragment as? OnHabitCreatedListener
         if (listener == null) {
             listener = context as? OnHabitCreatedListener

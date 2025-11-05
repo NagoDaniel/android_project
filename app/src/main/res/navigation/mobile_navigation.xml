@@ -5,6 +5,11 @@
     android:id="@+id/mobile_navigation"
     app:startDestination="@+id/loginFragment">
 
+    <!-- Global action to open Create Schedule from anywhere (FAB) -->
+    <action
+        android:id="@+id/action_global_createScheduleFragment"
+        app:destination="@id/createScheduleFragment" />
+
     <!-- Login Fragment -->
     <fragment
         android:id="@+id/loginFragment"
@@ -50,6 +55,10 @@
         <action
             android:id="@+id/action_navigation_home_to_navigation_notifications"
             app:destination="@id/navigation_notifications" />
+        <!-- Navigate to Schedule Detail -->
+        <action
+            android:id="@+id/action_navigation_home_to_scheduleDetailFragment"
+            app:destination="@id/scheduleDetailFragment" />
     </fragment>
 
     <fragment
@@ -82,5 +91,23 @@
             app:destination="@id/loginFragment"
             app:popUpTo="@id/mobile_navigation"
             app:popUpToInclusive="true" />
+    </fragment>
+
+    <!-- New: Create Schedule Fragment -->
+    <fragment
+        android:id="@+id/createScheduleFragment"
+        android:name="com.example.progfront.ui.schedule.CreateScheduleFragment"
+        android:label="@string/create_schedule"
+        tools:layout="@layout/activity_create_schedule" />
+
+    <!-- New: Schedule Detail Fragment with argument -->
+    <fragment
+        android:id="@+id/scheduleDetailFragment"
+        android:name="com.example.progfront.ui.schedule.ScheduleDetailFragment"
+        android:label="Schedule Detail"
+        tools:layout="@layout/activity_schedule_detail">
+        <argument
+            android:name="schedule_id"
+            app:argType="integer" />
     </fragment>
 </navigation>

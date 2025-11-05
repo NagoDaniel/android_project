@@ -1,7 +1,6 @@
 package com.example.progfront.ui.home
 
 import android.app.DatePickerDialog
-import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
@@ -10,11 +9,11 @@ import android.view.ViewGroup
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
+import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.progfront.data.Result
 import com.example.progfront.data.model.ScheduleResponse
 import com.example.progfront.databinding.FragmentHomeBinding
-import com.example.progfront.ui.schedule.ScheduleDetailActivity
 import com.example.progfront.utils.TokenManager
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -59,16 +58,13 @@ class HomeFragment : Fragment() {
         adapter = ScheduleAdapter(
             onStatusToggle = { schedule -> toggleStatus(schedule) },
             onItemClick = { schedule ->
-                val ctx = requireContext()
-                val intent = Intent(ctx, ScheduleDetailActivity::class.java)
-                intent.putExtra("schedule_id", schedule.id)
-                startActivity(intent)
+                val actionId = com.example.progfront.R.id.action_navigation_home_to_scheduleDetailFragment
+                val args = Bundle().apply { putInt("schedule_id", schedule.id) }
+                findNavController().navigate(actionId, args)
             }
         )
         binding.recyclerSchedules.layoutManager = LinearLayoutManager(requireContext())
         binding.recyclerSchedules.adapter = adapter
-        // Hide cache banner always (cache removed) idk
-        //binding.bannerCache.visibility = View.GONE
     }
 
     private fun setupSwipeRefresh() {
@@ -147,7 +143,6 @@ class HomeFragment : Fragment() {
         viewModel.loadSchedulesForDay(day)
     }
 
-    // Toggle status: UI simply forwards the schedule to ViewModel which computes next state
     private fun toggleStatus(schedule: ScheduleResponse) {
         adapter.markUpdating(schedule.id, true)
         pendingStatusUpdateId = schedule.id

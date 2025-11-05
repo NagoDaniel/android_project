@@ -1,59 +1,61 @@
 package com.example.progfront.ui.schedule
 
 import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.Menu
+import android.view.MenuInflater
+import android.view.MenuItem
 import android.view.View
+import android.view.ViewGroup
+import android.widget.Button
 import android.widget.Toast
-import androidx.activity.viewModels
-import androidx.appcompat.app.AppCompatActivity
+import androidx.core.os.bundleOf
+import androidx.core.view.MenuHost
+import androidx.core.view.MenuProvider
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.Lifecycle
+import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.progfront.R
 import com.example.progfront.data.Result
 import com.example.progfront.data.model.ProgressResponse
 import com.example.progfront.data.model.ScheduleResponse
+import com.example.progfront.databinding.ActivityScheduleDetailBinding
+import com.example.progfront.databinding.DialogAddProgressBinding
 import com.example.progfront.utils.TokenManager
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import androidx.appcompat.app.AlertDialog
+import android.util.Log
+import android.view.LayoutInflater.from
+import android.view.ViewGroup.LayoutParams
+import android.widget.TextView
+import android.widget.EditText
+import android.app.TimePickerDialog
+import com.google.android.material.textfield.TextInputEditText
+import com.google.gson.Gson
 import java.text.ParseException
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import android.util.Log
-import android.app.TimePickerDialog
-import android.view.Menu
-import android.view.MenuItem
-import com.google.android.material.textfield.TextInputEditText
-import com.google.gson.Gson
-import com.example.progfront.data.model.ProgressCreateRequest
-import com.example.progfront.databinding.ActivityScheduleDetailBinding
-import com.google.android.material.progressindicator.CircularProgressIndicator
-import com.google.android.material.floatingactionbutton.FloatingActionButton
 import androidx.recyclerview.widget.RecyclerView
-import android.view.ViewGroup
-import android.view.LayoutInflater
-import android.widget.TextView
-import android.widget.EditText
-import android.widget.CheckBox
-import com.google.android.material.button.MaterialButton
-import com.google.android.material.textfield.TextInputLayout
-import com.example.progfront.databinding.DialogAddProgressBinding
-import androidx.appcompat.app.AlertDialog
-import android.widget.Button
 
-class ScheduleDetailActivity : AppCompatActivity() {
+class ScheduleDetailFragment : Fragment() {
+
+    private var _binding: ActivityScheduleDetailBinding? = null
+    private val binding get() = _binding!!
 
     private lateinit var tokenManager: TokenManager
-    private lateinit var binding: ActivityScheduleDetailBinding
     private val viewModel: ScheduleDetailViewModel by viewModels()
 
-    // Reference to the add-progress dialog so we can dismiss / update it from observers
     private var addProgressDialog: AlertDialog? = null
 
     private var scheduleId: Int = -1
     private var currentSchedule: ScheduleResponse? = null
-    private val ProgressAdapterr = ProgressAdapterr(mutableListOf())
+    private val progressAdapter = ProgressAdapter(mutableListOf())
 
-    private val TAG = "ScheduleDetailActivity"
+    private val TAG = "ScheduleDetailFragment"
 
-    // Time parsing/formatting (single authoritative definition)
     private val parsePatterns = listOf(
         "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
         "yyyy-MM-dd'T'HH:mm:ss'Z'",
@@ -63,40 +65,54 @@ class ScheduleDetailActivity : AppCompatActivity() {
     private val utc = TimeZone.getTimeZone("UTC")
     private val outTime = SimpleDateFormat("HH:mm", Locale.getDefault()).apply { timeZone = utc }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        binding = ActivityScheduleDetailBinding.inflate(layoutInflater)
-        setContentView(binding.root)
-        tokenManager = TokenManager(this)
-
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
+        _binding = ActivityScheduleDetailBinding.inflate(inflater, container, false)
+        tokenManager = TokenManager(requireContext())
         setupRecycler()
         setupNotesInlineEditing()
         setupFab()
         setupObservers()
 
-        scheduleId = intent.getIntExtra("schedule_id", -1)
+        // Retrieve argument
+        scheduleId = arguments?.getInt("schedule_id", -1) ?: -1
         if (scheduleId == -1) {
-            Toast.makeText(this, R.string.schedule_invalid_id, Toast.LENGTH_SHORT).show()
-            finish(); return
+            Toast.makeText(requireContext(), R.string.schedule_invalid_id, Toast.LENGTH_SHORT).show()
+            findNavController().navigateUp();
+        } else {
+            fetchSchedule(scheduleId)
         }
-        fetchSchedule(scheduleId)
+
+        // Add menu for edit/delete via MenuHost API
+        (requireActivity() as MenuHost).addMenuProvider(object : MenuProvider {
+            override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
+                menuInflater.inflate(R.menu.schedule_detail_menu, menu)
+            }
+            override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
+                return when (menuItem.itemId) {
+                    R.id.action_edit -> { showEditScheduleDialog(); true }
+                    R.id.action_delete -> { confirmDeleteSchedule(); true }
+                    else -> false
+                }
+            }
+        }, viewLifecycleOwner, Lifecycle.State.RESUMED)
+
+        return binding.root
     }
 
-    override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        menuInflater.inflate(R.menu.schedule_detail_menu, menu)
-        return true
-    }
-
-    override fun onOptionsItemSelected(item: MenuItem): Boolean = when (item.itemId) {
-        R.id.action_edit -> { showEditScheduleDialog(); true }
-        R.id.action_delete -> { confirmDeleteSchedule(); true }
-        else -> super.onOptionsItemSelected(item)
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
+        addProgressDialog = null
     }
 
     private fun setupRecycler() {
         binding.recyclerProgress.apply {
-            layoutManager = LinearLayoutManager(this@ScheduleDetailActivity)
-            adapter = ProgressAdapterr
+            layoutManager = LinearLayoutManager(requireContext())
+            adapter = progressAdapter
         }
     }
 
@@ -122,14 +138,14 @@ class ScheduleDetailActivity : AppCompatActivity() {
     private fun fetchSchedule(id: Int) {
         val token = tokenManager.getAccessToken()
         if (token.isNullOrBlank()) {
-            Toast.makeText(this, R.string.auth_not_authenticated, Toast.LENGTH_SHORT).show()
-            finish(); return
+            Toast.makeText(requireContext(), R.string.auth_not_authenticated, Toast.LENGTH_SHORT).show()
+            findNavController().navigateUp(); return
         }
         viewModel.loadScheduleById(id)
     }
 
     private fun setupObservers() {
-        viewModel.scheduleDetail.observe(this) { result ->
+        viewModel.scheduleDetail.observe(viewLifecycleOwner) { result ->
             when (result) {
                 is Result.Loading -> showLoading(true)
                 is Result.Success -> {
@@ -145,61 +161,57 @@ class ScheduleDetailActivity : AppCompatActivity() {
             }
         }
 
-        viewModel.updateResult.observe(this) { result ->
+        viewModel.updateResult.observe(viewLifecycleOwner) { result ->
             when (result) {
                 is Result.Loading -> showLoading(true)
                 is Result.Success -> {
                     showLoading(false)
-                    Toast.makeText(this, R.string.schedule_edit_success, Toast.LENGTH_SHORT).show()
+                    Toast.makeText(requireContext(), R.string.schedule_edit_success, Toast.LENGTH_SHORT).show()
                     fetchSchedule(scheduleId)
                 }
                 is Result.Error -> {
                     showLoading(false)
-                    Toast.makeText(this, R.string.schedule_edit_failed, Toast.LENGTH_SHORT).show()
+                    Toast.makeText(requireContext(), R.string.schedule_edit_failed, Toast.LENGTH_SHORT).show()
                 }
             }
         }
 
-        viewModel.deleteResult.observe(this) { result ->
+        viewModel.deleteResult.observe(viewLifecycleOwner) { result ->
             when (result) {
                 is Result.Loading -> showLoading(true)
                 is Result.Success -> {
                     showLoading(false)
-                    Toast.makeText(this, R.string.schedule_deleted, Toast.LENGTH_SHORT).show()
-                    finish()
+                    Toast.makeText(requireContext(), R.string.schedule_deleted, Toast.LENGTH_SHORT).show()
+                    findNavController().navigateUp()
                 }
                 is Result.Error -> {
                     showLoading(false)
-                    Toast.makeText(this, R.string.schedule_delete_failed, Toast.LENGTH_SHORT).show()
+                    Toast.makeText(requireContext(), R.string.schedule_delete_failed, Toast.LENGTH_SHORT).show()
                 }
             }
         }
 
-        viewModel.progressResult.observe(this) { result ->
+        viewModel.progressResult.observe(viewLifecycleOwner) { result ->
             when (result) {
                 is Result.Loading -> showLoading(true)
                 is Result.Success -> {
                     showLoading(false)
-                    // if the add-progress dialog is open, dismiss it
-                    addProgressDialog?.let { dlg ->
-                        if (dlg.isShowing) dlg.dismiss()
-                    }
+                    addProgressDialog?.let { dlg -> if (dlg.isShowing) dlg.dismiss() }
                     addProgressDialog = null
-                    Toast.makeText(this, R.string.schedule_progress_added, Toast.LENGTH_SHORT).show()
+                    Toast.makeText(requireContext(), R.string.schedule_progress_added, Toast.LENGTH_SHORT).show()
                     fetchSchedule(scheduleId)
                 }
                 is Result.Error -> {
                     showLoading(false)
-                    // If dialog exists, re-enable its positive button so user can retry
                     addProgressDialog?.let { dlg ->
                         if (dlg.isShowing) {
                             try {
                                 val btn = dlg.getButton(AlertDialog.BUTTON_POSITIVE)
                                 btn?.isEnabled = true
-                            } catch (_: Exception) { /* ignore */ }
+                            } catch (_: Exception) { }
                         }
                     }
-                    Toast.makeText(this, R.string.schedule_progress_add_error, Toast.LENGTH_SHORT).show()
+                    Toast.makeText(requireContext(), R.string.schedule_progress_add_error, Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -230,7 +242,7 @@ class ScheduleDetailActivity : AppCompatActivity() {
         progressCircle.setProgress(percent, true)
         textProgressPercent.text = getString(R.string.schedule_progress_percent, percent)
 
-        ProgressAdapterr.updateList(progressList.sortedByDescending { it.date })
+        progressAdapter.updateList(progressList.sortedByDescending { it.date })
         enableNotesEditing(false)
     }
 
@@ -244,13 +256,11 @@ class ScheduleDetailActivity : AppCompatActivity() {
     }
 
     private fun formatTime(raw: String): String {
-        // Fast path: extract HH:mm after 'T'
         val tIndex = raw.indexOf('T')
         if (tIndex >= 0 && raw.length >= tIndex + 6) {
             val candidate = raw.substring(tIndex + 1, tIndex + 6)
             if (candidate.matches(Regex("\\d{2}:\\d{2}"))) return candidate
         }
-        // Fallback parse
         parsePatterns.forEach { p ->
             try {
                 val sdf = SimpleDateFormat(p, Locale.getDefault())
@@ -271,48 +281,35 @@ class ScheduleDetailActivity : AppCompatActivity() {
 
     private fun showAddProgressDialog() {
         val dialogBinding = DialogAddProgressBinding.inflate(layoutInflater)
-        val dialog = MaterialAlertDialogBuilder(this)
+        val dialog = MaterialAlertDialogBuilder(requireContext())
             .setTitle(getString(R.string.schedule_add_progress))
             .setView(dialogBinding.root)
             .setNegativeButton(getString(R.string.schedule_dialog_cancel)) { d, _ -> d.dismiss() }
             .setPositiveButton(getString(R.string.schedule_dialog_save), null)
             .create()
 
-        // Keep a reference so observers can dismiss or re-enable the button
         addProgressDialog = dialog
-
-        // Clear our reference whenever the dialog is dismissed or cancelled
         dialog.setOnDismissListener { addProgressDialog = null }
-
         dialog.setOnShowListener {
             val btn: Button? = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
             btn?.setOnClickListener {
-                // collect values from binding
                 val loggedText = dialogBinding.inputLoggedTime.text?.toString().orEmpty()
                 val loggedTime = loggedText.toIntOrNull()
                 val notes = dialogBinding.inputNotes.text?.toString().takeIf { !it.isNullOrBlank() }
                 val isCompleted = dialogBinding.checkCompleted.isChecked
-
-
-
-                // disable button to prevent duplicate submissions; keep dialog shown until ViewModel responds
                 btn.isEnabled = false
-
-                // submit via ViewModel; the progressResult observer will dismiss or re-enable the button
                 submitProgress(loggedTime, notes, isCompleted)
             }
         }
-
         dialog.show()
     }
 
     private fun submitProgress(loggedTime: Int?, notes: String?, isCompleted: Boolean) {
         val token = tokenManager.getAccessToken()
         if (token.isNullOrBlank()) {
-            Toast.makeText(this, R.string.auth_not_authenticated, Toast.LENGTH_SHORT).show(); return
+            Toast.makeText(requireContext(), R.string.auth_not_authenticated, Toast.LENGTH_SHORT).show(); return
         }
         val schedule = currentSchedule ?: return
-        // Delegate to ViewModel which builds the request and calls repository
         viewModel.addProgressForSchedule(schedule, loggedTime, notes, isCompleted)
     }
 
@@ -339,14 +336,14 @@ class ScheduleDetailActivity : AppCompatActivity() {
             val initial = (target.text?.toString()?.takeIf { it.matches(Regex("\\d{2}:\\d{2}")) } ?: "00:00").split(":")
             val h = initial[0].toIntOrNull() ?: 0
             val m = initial[1].toIntOrNull() ?: 0
-            TimePickerDialog(this, { _, hour, minute ->
+            TimePickerDialog(requireContext(), { _, hour, minute ->
                 target.setText(String.format(Locale.getDefault(), "%02d:%02d", hour, minute))
             }, h, m, true).show()
         }
         inputStart.setOnClickListener { pickTime(inputStart) }
         inputEnd.setOnClickListener { pickTime(inputEnd) }
 
-        MaterialAlertDialogBuilder(this)
+        MaterialAlertDialogBuilder(requireContext())
             .setTitle(getString(R.string.schedule_edit_title))
             .setView(view)
             .setPositiveButton(getString(R.string.schedule_dialog_save)) { d, _ ->
@@ -354,7 +351,7 @@ class ScheduleDetailActivity : AppCompatActivity() {
                 val datePart = schedule.start_time.take(10)
                 val startTxt = inputStart.text?.toString()?.trim().orEmpty()
                 if (!startTxt.matches(Regex("\\d{2}:\\d{2}"))) {
-                    Toast.makeText(this, R.string.schedule_edit_invalid_start, Toast.LENGTH_SHORT).show(); return@setPositiveButton
+                    Toast.makeText(requireContext(), R.string.schedule_edit_invalid_start, Toast.LENGTH_SHORT).show(); return@setPositiveButton
                 }
                 val endTxt = inputEnd.text?.toString()?.trim().orEmpty()
                 val duration = inputDuration.text?.toString()?.trim()?.toIntOrNull()
@@ -369,7 +366,7 @@ class ScheduleDetailActivity : AppCompatActivity() {
                 val startIso = datePart + "T" + startTxt + ":00"
                 var endIso = if (endTxt.matches(Regex("\\d{2}:\\d{2}"))) datePart + "T" + endTxt + ":00" else null
                 if (endIso != null && endTxt < startTxt) {
-                    Toast.makeText(this, R.string.schedule_edit_end_before_start, Toast.LENGTH_SHORT).show()
+                    Toast.makeText(requireContext(), R.string.schedule_edit_end_before_start, Toast.LENGTH_SHORT).show()
                     endIso = null
                 }
 
@@ -390,14 +387,14 @@ class ScheduleDetailActivity : AppCompatActivity() {
     private fun submitScheduleUpdate(id: Int, body: Map<String, Any?>) {
         val token = tokenManager.getAccessToken()
         if (token.isNullOrBlank()) {
-            Toast.makeText(this, R.string.auth_not_authenticated, Toast.LENGTH_SHORT).show(); return
+            Toast.makeText(requireContext(), R.string.auth_not_authenticated, Toast.LENGTH_SHORT).show(); return
         }
         viewModel.updateSchedule(id, body)
     }
 
     private fun confirmDeleteSchedule() {
         val schedule = currentSchedule ?: return
-        MaterialAlertDialogBuilder(this)
+        MaterialAlertDialogBuilder(requireContext())
             .setTitle(getString(R.string.schedule_delete_title))
             .setMessage(getString(R.string.schedule_delete_confirm))
             .setPositiveButton(getString(R.string.delete_yes)) { d, _ -> d.dismiss(); deleteSchedule(schedule.id) }
@@ -408,7 +405,7 @@ class ScheduleDetailActivity : AppCompatActivity() {
     private fun deleteSchedule(id: Int) {
         val token = tokenManager.getAccessToken()
         if (token.isNullOrBlank()) {
-            Toast.makeText(this, R.string.auth_not_authenticated, Toast.LENGTH_SHORT).show(); return
+            Toast.makeText(requireContext(), R.string.auth_not_authenticated, Toast.LENGTH_SHORT).show(); return
         }
         viewModel.deleteSchedule(id)
     }
@@ -417,7 +414,7 @@ class ScheduleDetailActivity : AppCompatActivity() {
         val schedule = currentSchedule ?: return
         val token = tokenManager.getAccessToken()
         if (token.isNullOrBlank()) {
-            Toast.makeText(this, R.string.auth_not_authenticated, Toast.LENGTH_SHORT).show(); return
+            Toast.makeText(requireContext(), R.string.auth_not_authenticated, Toast.LENGTH_SHORT).show(); return
         }
         val newNotes = binding.inputNotesEdit.text?.toString()?.trim().orEmpty()
         val body = mapOf<String, Any?>("notes" to newNotes.ifBlank { null })
@@ -430,8 +427,8 @@ class ScheduleDetailActivity : AppCompatActivity() {
     }
 }
 
-// Adapter updated to support list updates without recreating the adapter instance
-class ProgressAdapterr(private val items: MutableList<ProgressResponse>) : RecyclerView.Adapter<ProgressAdapterr.VH>() {
+// Adapter same as in Activity version
+class ProgressAdapter(private val items: MutableList<ProgressResponse>) : RecyclerView.Adapter<ProgressAdapter.VH>() {
 
     fun updateList(newItems: List<ProgressResponse>) {
         items.clear(); items.addAll(newItems); notifyDataSetChanged()
@@ -455,3 +452,4 @@ class ProgressAdapterr(private val items: MutableList<ProgressResponse>) : Recyc
         holder.secondary.text = if (!p.notes.isNullOrBlank()) ctx.getString(R.string.schedule_progress_list_secondary_with_notes, logged, p.notes) else logged
     }
 }
+
