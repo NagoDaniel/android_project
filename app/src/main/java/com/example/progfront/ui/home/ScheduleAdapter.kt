@@ -8,8 +8,7 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.example.progfront.R
 import com.example.progfront.data.model.ScheduleResponse
-import java.text.ParseException
-import java.text.SimpleDateFormat
+import com.example.progfront.utils.DateTimeUtils
 import java.util.Locale
 import java.util.TimeZone
 
@@ -59,17 +58,8 @@ class ScheduleAdapter(
         private val textNotes: TextView = itemView.findViewById(R.id.textNotes)
         private val textStatus: TextView = itemView.findViewById(R.id.textStatus)
 
-        private val patterns = listOf(
-            "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
-            "yyyy-MM-dd'T'HH:mm:ss'Z'",
-            "yyyy-MM-dd'T'HH:mm:ss.SSS",
-            "yyyy-MM-dd'T'HH:mm:ss"
-        )
-
-        private val utcZone = TimeZone.getTimeZone("UTC")
-        private val outputTime = SimpleDateFormat("HH:mm", Locale.getDefault()).apply { timeZone = utcZone }
         fun bind(item: ScheduleResponse) {
-            textTime.text = formatTime(item.start_time)
+            textTime.text = DateTimeUtils.formatTime(item.start_time)
             textHabitName.text = item.habit?.name ?: "Habit #${item.habitId ?: "?"}"
             textNotes.text = item.notes ?: ""
             textNotes.visibility = if (item.notes.isNullOrBlank()) View.GONE else View.VISIBLE
@@ -107,25 +97,6 @@ class ScheduleAdapter(
                     textStatus.setTextColor(Color.parseColor("#333333"))
                 }
             }
-        }
-
-        private fun formatTime(raw: String): String {
-
-            val tIndex = raw.indexOf('T')
-            if (tIndex >= 0 && raw.length >= tIndex + 6) {
-                val candidate = raw.substring(tIndex + 1, tIndex + 6)
-                if (candidate.matches(Regex("\\d{2}:\\d{2}"))) return candidate
-            }
-            // Fallback to previous parsing approach if direct extraction fails.
-            patterns.forEach { p ->
-                try {
-                    val sdf = SimpleDateFormat(p, Locale.getDefault())
-                    if (p.contains("'Z'")) sdf.timeZone = utcZone
-                    val date = sdf.parse(raw)
-                    if (date != null) return outputTime.format(date)
-                } catch (_: ParseException) {}
-            }
-            return raw.substringAfter('T').take(5)
         }
     }
 }

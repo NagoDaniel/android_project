@@ -22,6 +22,7 @@ import com.example.progfront.data.model.UpdateProfileRequest
 import com.example.progfront.data.remote.RetrofitClient
 import com.example.progfront.ui.auth.login.LoginActivity
 import com.example.progfront.ui.schedule.AddHabitDialogFragment
+import com.example.progfront.utils.ImageUtils
 import com.example.progfront.utils.TokenManager
 import com.google.gson.Gson
 import com.squareup.picasso.Picasso
@@ -172,55 +173,25 @@ class ProfileFragment : Fragment(), AddHabitDialogFragment.OnHabitCreatedListene
         binding.textEmail.text = profile.email
         binding.textDescription.text = profile.description.orEmpty()
         binding.textDescription.visibility = if (profile.description.isNullOrBlank()) View.GONE else View.VISIBLE
-        val chosen = when {
-            !profile.profileImageUrl.isNullOrBlank() -> profile.profileImageUrl
-            !profile.profileImageBase64.isNullOrBlank() -> {
-                val b64 = profile.profileImageBase64.trim()
-                if (b64.startsWith("data:image")) b64 else "data:image/*;base64,$b64"
-            }
-            else -> null
-        }
-        Log.d(TAG, "bindProfile: imageUrl=${profile.profileImageUrl} base64Present=${!profile.profileImageBase64.isNullOrBlank()} chosen=${chosen?.take(30)}...")
-        loadProfileImage(chosen)
+        val imageUrl = viewModel.prepareProfileImageUrl(profile)
+        loadProfileImage(imageUrl)
     }
 
     private fun loadProfileImage(raw: String?) {
         if (raw.isNullOrBlank()) return
         if (raw.startsWith("data:image") || raw.contains(";base64,")) {
-            val base64Part = raw.substringAfter(",", "")
-            try {
-                val bytes = android.util.Base64.decode(base64Part, android.util.Base64.DEFAULT)
-                val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                if (bmp != null) {
-                    binding.imageProfile.setImageBitmap(bmp)
-                    return
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to decode base64 profile image: ${e.message}")
+            val bmp = ImageUtils.decodeBase64ToBitmap(raw)
+            if (bmp != null) {
+                binding.imageProfile.setImageBitmap(bmp)
+                return
             }
         }
-        val url = normalizeImageUrl(raw)
-        Log.d(TAG, "Loading profile image url=$url (raw=$raw)")
         Picasso.get()
-            .load(url)
+            .load(raw)
             .placeholder(R.mipmap.ic_launcher_round)
             .error(R.mipmap.ic_launcher_round)
             .into(binding.imageProfile)
     }
-
-    private fun normalizeImageUrl(raw: String): String {
-        val trimmed = raw.trim()
-        if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) return trimmed
-        val base = getBaseUrl().trimEnd('/')
-        val path = trimmed.trimStart('/')
-        return "$base/$path"
-    }
-
-    private fun getBaseUrl(): String = try {
-        val field = RetrofitClient::class.java.getDeclaredField("BASE_URL")
-        field.isAccessible = true
-        (field.get(null) as? String) ?: "http://10.0.2.2:8080/"
-    } catch (_: Exception) { "http://10.0.2.2:8080/" }
 
     private fun openAddHabitDialog() {
         val dialog = AddHabitDialogFragment()

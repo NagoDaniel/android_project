@@ -11,6 +11,7 @@ import com.example.progfront.data.model.UpdateProfileRequest
 import com.example.progfront.data.repository.HabitRepository
 import com.example.progfront.data.repository.ProfileRepository
 import com.example.progfront.data.repository.ScheduleRepository
+import com.example.progfront.utils.ImageUtils
 import kotlinx.coroutines.launch
 import okhttp3.MultipartBody
 import java.text.SimpleDateFormat
@@ -124,5 +125,17 @@ class ProfileViewModel : ViewModel() {
 
             _habitPercents.postValue(percents)
         }
+    }
+
+    fun prepareProfileImageUrl(profile: ProfileResponse): String? {
+        val chosen = when {
+            !profile.profileImageUrl.isNullOrBlank() -> profile.profileImageUrl
+            !profile.profileImageBase64.isNullOrBlank() -> {
+                val b64 = profile.profileImageBase64.trim()
+                if (b64.startsWith("data:image")) b64 else "data:image/*;base64,$b64"
+            }
+            else -> null
+        }
+        return ImageUtils.prepareImageUrl(chosen)
     }
 }

@@ -25,7 +25,7 @@ class HomeViewModel : ViewModel() {
             _schedules.value = Result.Loading
             val result = scheduleRepository.getSchedulesForDay(date)
             if (result is Result.Success) {
-                val filtered = filterBySelectedDay(result.data, date)
+                val filtered = scheduleRepository.filterSchedulesByDate(result.data, date)
                 _schedules.value = Result.Success(filtered)
             } else {
                 _schedules.value = result
@@ -45,16 +45,6 @@ class HomeViewModel : ViewModel() {
             val next = sequence[(idx + 1) % sequence.size]
             val result = scheduleRepository.updateScheduleStatus(scheduleId, next)
             _statusUpdateResult.value = result
-        }
-    }
-    private fun filterBySelectedDay(list: List<ScheduleResponse>, targetDay: String): List<ScheduleResponse> {
-        if (list.isEmpty()) return list
-        return list.filter { schedule ->
-            val dateCandidates = listOfNotNull(schedule.start_time, schedule.date)
-            dateCandidates.any { candidate ->
-                val dayPart = candidate.take(10)
-                dayPart == targetDay
-            }
         }
     }
 }

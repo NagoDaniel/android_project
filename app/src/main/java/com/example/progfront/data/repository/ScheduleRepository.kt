@@ -161,4 +161,15 @@ class ScheduleRepository {
             }
         }
     }
+
+    fun filterSchedulesByDate(list: List<ScheduleResponse>, targetDay: String): List<ScheduleResponse> {
+        if (list.isEmpty()) return list
+        return list.filter { schedule ->
+            val dateCandidates = listOfNotNull(schedule.start_time, schedule.date)
+            dateCandidates.any { candidate ->
+                val dayPart = candidate.take(10)
+                dayPart == targetDay
+            }
+        }
+    }
 }
